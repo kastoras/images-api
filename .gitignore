@@ -1,0 +1,39 @@
+# Environment — never commit real credentials
+.env
+.env.local
+.env.*.local
+
+# Go build output
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/bin/
+/dist/
+
+# Test artifacts
+*.test
+coverage.out
+coverage.html
+
+# Air hot-reload (tmp_dir is /tmp/air per .air.toml, but guard the default too)
+tmp/
+
+# Vendor directory
+vendor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# Claude Code session data
+.claude/
+
+insomnia_demo.json

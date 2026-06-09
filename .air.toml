@@ -1,0 +1,16 @@
+# air config — https://github.com/air-verse/air
+root = "."
+tmp_dir = "/tmp/air"
+
+[build]
+  cmd = "go build -o /tmp/air/image-processor ./cmd/rest_api/main.go"
+  bin = "/tmp/air/image-processor"
+  include_ext = ["go", "toml", "yaml", ".env"]
+  exclude_dir = ["vendor", "infra", "tmp"]
+  kill_delay = "200ms"
+
+[log]
+  time = true
+
+[screen]
+  clear_on_rebuild = true
