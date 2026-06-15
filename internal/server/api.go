@@ -10,6 +10,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/kastoras/images-api/internal/config"
+	"github.com/kastoras/images-api/internal/server/authentication"
 	"github.com/rs/zerolog"
 )
 
@@ -18,7 +19,7 @@ type APIServer struct {
 	Log           zerolog.Logger
 	Cache         *Cache
 	Storage       *ObjectStorage
-	Auth          *AuthServer
+	Auth          authentication.Authenticator
 	Workers       *WorkerPool
 	Semaphore     chan struct{}
 	MaxQueueDepth int
@@ -56,7 +57,11 @@ func NewAPIServer(cfg *config.Config) *APIServer {
 		}
 	}
 
-	s.Auth = initAuthServer(cfg)
+	auth, err := authentication.NewAuthenticator(context.Background(), cfg, s.Log)
+	if err != nil {
+		s.Log.Fatal().Err(err).Msg("authentication init failed")
+	}
+	s.Auth = auth
 	s.Semaphore = make(chan struct{}, cfg.MaxWorkers)
 
 	if s.Cache != nil && s.Storage != nil {

@@ -1,11 +1,13 @@
 package middleware
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/kastoras/images-api/internal/server"
+	"github.com/kastoras/images-api/internal/server/authentication"
 )
 
 const testToken = "test-secret-token"
@@ -14,7 +16,7 @@ const testToken = "test-secret-token"
 // (Zitadel disabled) with the given API token.
 func makeAPIServer(token string) *server.APIServer {
 	return &server.APIServer{
-		Auth:      server.NewAuthServer(token, false),
+		Auth:      authentication.NewBearerAuthenticator(token),
 		Semaphore: make(chan struct{}, 1),
 	}
 }
@@ -83,5 +85,66 @@ func TestAuth_EmptyBearerValue_Returns401(t *testing.T) {
 	rec := applyAuth(s, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("expected 401, got %d", rec.Code)
+	}
+}
+
+// applyRequireRole runs RequireRole(role) over a request carrying the given
+// principal in context (nil = no principal, as if Auth never ran).
+func applyRequireRole(role string, p *authentication.Principal) *httptest.ResponseRecorder {
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	if p != nil {
+		req = req.WithContext(authentication.WithPrincipal(context.Background(), p))
+	}
+	rec := httptest.NewRecorder()
+	RequireRole(role)(okHandler).ServeHTTP(rec, req)
+	return rec
+}
+
+func TestRequireRole(t *testing.T) {
+	tests := []struct {
+		name      string
+		required  string
+		principal *authentication.Principal
+		want      int
+	}{
+		{
+			name:      "principal has required role passes through",
+			required:  "resize",
+			principal: &authentication.Principal{Subject: "client-a", Roles: []string{"resize"}},
+			want:      http.StatusOK,
+		},
+		{
+			name:      "wildcard role passes any check",
+			required:  "jobs",
+			principal: &authentication.Principal{Subject: "local-dev", Roles: []string{"*"}},
+			want:      http.StatusOK,
+		},
+		{
+			name:      "principal lacks required role is forbidden",
+			required:  "jobs",
+			principal: &authentication.Principal{Subject: "client-a", Roles: []string{"resize"}},
+			want:      http.StatusForbidden,
+		},
+		{
+			name:      "principal with no roles is forbidden",
+			required:  "resize",
+			principal: &authentication.Principal{Subject: "client-a", Roles: nil},
+			want:      http.StatusForbidden,
+		},
+		{
+			name:      "missing principal is forbidden",
+			required:  "resize",
+			principal: nil,
+			want:      http.StatusForbidden,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := applyRequireRole(tt.required, tt.principal)
+			if rec.Code != tt.want {
+				t.Errorf("expected %d, got %d", tt.want, rec.Code)
+			}
+		})
 	}
 }

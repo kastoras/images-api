@@ -37,3 +37,6 @@ vendor/
 .claude/
 
 insomnia_demo.json
+
+# Zitadel generated machine key (written at first startup)
+infra/zitadel

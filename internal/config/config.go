@@ -10,14 +10,14 @@ import (
 type Config struct {
 	Port string
 
-	RedisEnabled   bool
-	S3Enabled      bool
-	ZitadelEnabled bool
+	RedisEnabled bool
+	S3Enabled    bool
 
-	APIToken        string
-	ZitadelIssuer   string
-	ZitadelClientID string
-	ZitadelAudience string
+	AuthenticationType string
+	APIToken           string
+	ZitadelIssuer      string
+	ZitadelClientID    string
+	ZitadelAudience    string
 
 	RedisURL      string
 	RedisPassword string
@@ -65,11 +65,10 @@ func Load() (*Config, error) {
 	}
 	cfg.S3Enabled, _ = strconv.ParseBool(s)
 
-	s, err = env_parameters.GetString("ZITADEL_ENABLED", "false")
+	cfg.AuthenticationType, err = env_parameters.GetString("AUTHENTICATION_TYPE", "bearer")
 	if err != nil {
 		return nil, err
 	}
-	cfg.ZitadelEnabled, _ = strconv.ParseBool(s)
 
 	cfg.APIToken, err = env_parameters.GetString("API_TOKEN", "")
 	if err != nil {
