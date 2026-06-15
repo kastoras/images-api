@@ -17,6 +17,10 @@ func Unauthorized(w http.ResponseWriter) {
 	writeError(w, http.StatusUnauthorized, "unauthorized")
 }
 
+func Forbidden(w http.ResponseWriter) {
+	writeError(w, http.StatusForbidden, "forbidden: insufficient permissions")
+}
+
 func NotFound(w http.ResponseWriter) {
 	writeError(w, http.StatusNotFound, "not found")
 }

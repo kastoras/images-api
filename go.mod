@@ -3,6 +3,8 @@ module github.com/kastoras/images-api
 go 1.26.3
 
 require (
+	github.com/MicahParks/jwkset v0.11.0 // indirect
+	github.com/MicahParks/keyfunc/v3 v3.8.0 // indirect
 	github.com/aws/aws-sdk-go-v2 v1.41.12 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.13 // indirect
 	github.com/aws/aws-sdk-go-v2/config v1.32.23 // indirect
@@ -35,4 +37,5 @@ require (
 	go.uber.org/atomic v1.11.0 // indirect
 	golang.org/x/image v0.0.0-20191009234506-e7c1f5e7dbb8 // indirect
 	golang.org/x/sys v0.30.0 // indirect
+	golang.org/x/time v0.9.0 // indirect
 )

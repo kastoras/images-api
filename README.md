@@ -18,13 +18,14 @@ Each domain lives in `internal/domains/<name>/`. The `resize` domain is the full
 
 | File | Responsibility |
 |---|---|
-| `types.go` | Exported domain types shared across all layers (`ResizeMode`, `ResizeOptions`, `ProcessResult`, `Resizer`, sentinel errors) |
-| `parser.go` | Request parsing + validation helpers (`parseResizeRequest`, `parseWidth`, `parseHeight`, `parseMode`, `validateDimensions`) |
-| `handler.go` | HTTP handler — routes, error mapping, response writing |
+| `types.go` | Exported types, sentinel errors, interfaces |
+| `validate.go` | Pre-parse request validation — fails fast before any I/O |
+| `parser.go` | Request parsing helpers |
+| `handler.go` | HTTP handler methods |
 | `router.go` | Wires routes to the handler |
 | `service.go` | Business logic — image processing, queue management, S3 upload |
 
-Simple domains (e.g. `health`) use only `handler.go` + `router.go`.
+Simple domains (e.g. `health`) use only `handler.go` + `router.go`. All new rich domains must follow the full pattern above.
 
 ## Local development
 
@@ -53,8 +54,8 @@ Copy `.env.example` to `.env` and fill in the values.
 | `API_PORT` | `8080` | Listening port |
 | `REDIS_ENABLED` | `false` | Enable Redis queue and job metadata |
 | `S3_ENABLED` | `false` | Enable MinIO/S3 object storage |
-| `ZITADEL_ENABLED` | `false` | Use Zitadel OIDC auth; `false` = static bearer token |
-| `API_TOKEN` | — | Static bearer token when `ZITADEL_ENABLED=false` |
+| `AUTHENTICATION_TYPE` | `bearer` | Auth implementation: `bearer` (static token) or `zitadel` (OIDC JWT) |
+| `API_TOKEN` | — | Static bearer token when `AUTHENTICATION_TYPE=bearer` |
 | `ZITADEL_ISSUER` | — | Zitadel issuer URL |
 | `ZITADEL_CLIENT_ID` | — | Zitadel client ID |
 | `ZITADEL_AUDIENCE` | `image-api` | Expected JWT audience |
@@ -74,7 +75,27 @@ Copy `.env.example` to `.env` and fill in the values.
 | `IDLE_TIMEOUT` | `60` | HTTP idle timeout in seconds |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 
-For local dev set `ZITADEL_ENABLED=false` and `API_TOKEN=dev-token-12345`.
+For local dev set `AUTHENTICATION_TYPE=bearer` and `API_TOKEN=dev-token-12345`.
+
+## Zitadel setup
+
+Set `AUTHENTICATION_TYPE=zitadel` and configure these variables in `.env`:
+
+| Variable | Where to find it |
+|---|---|
+| `ZITADEL_ISSUER` | Zitadel instance URL, e.g. `https://<instance>.zitadel.cloud` |
+| `ZITADEL_AUDIENCE` | Resource ID of your API application (shown in the API app settings) |
+| `ZITADEL_CLIENT_ID` | Client ID (for future introspection use) |
+
+**Steps:**
+1. In Zitadel, create a **Project** and inside it an **API application** (type: API, auth method: JWT).
+2. Copy the **Issuer URL** from your instance's domain settings into `ZITADEL_ISSUER`.
+3. Copy the **Resource ID** of the API application into `ZITADEL_AUDIENCE`.
+4. Clients must send a valid JWT access token: `Authorization: Bearer <jwt>`.
+
+Token signatures are verified **offline** using Zitadel's JWKS endpoint (`<issuer>/oauth/v2/keys`) — no per-request call to Zitadel is made. The JWKS is refreshed automatically in the background.
+
+To add a new identity provider (e.g. Keycloak) in the future: implement the `Authenticator` interface in `internal/server/authentication/` and register it in `factory.go`.
 
 ## Tests
 

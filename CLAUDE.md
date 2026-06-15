@@ -25,17 +25,23 @@ Entry point: `cmd/rest_api/main.go` creates a `mux.Router`, instantiates `server
 **Layer structure:**
 
 - `internal/server/` — `APIServer` struct with port, HTTP client, graceful shutdown, and timeout config. Stub files (`cache.go`, `logger.go`, `object_storage.go`, `auth_server.go`) are placeholders for Redis cache, structured logger, MinIO client, and Zitadel auth — to be wired into `APIServer`.
-- `internal/domains/<name>/` — one package per domain. Simple domains use two files; the `resize` domain is the full reference pattern:
-  - `types.go` — exported domain types (`ResizeMode`, `ResizeOptions`, `ProcessResult`, `Resizer` interface, sentinel errors)
-  - `parser.go` — request parsing + validation helpers (`parseResizeRequest`, `parseWidth`, `parseHeight`, `parseMode`, `validateDimensions`, `resizeRequest` struct)
-  - `handler.go` — `Handler` struct, one method per route, error mapping to HTTP status
+- `internal/domains/<name>/` — one package per domain. Every domain follows this layer pattern (the `resize` domain is the reference implementation):
+  - `types.go` — exported types, sentinel errors, interfaces
+  - `validate.go` — pre-parse request validation (fail fast before any I/O)
+  - `parser.go` — request parsing helpers
+  - `handler.go` — HTTP handler methods
   - `router.go` — `Register(router *mux.Router, s *server.APIServer)` wires routes
-  - `service.go` — business logic (imaging, queue, S3 upload)
-- `internal/utils/` — JSON response helpers: `Success`, `Created`, `NoContent`, `Accepted`
+  - `service.go` — business logic
+
+  Simple domains (e.g. `health`) may use only `handler.go` + `router.go`. All new rich domains must follow the full pattern above.
+
+- `internal/utils/errors/` — `ValidationError` type, `NewValidationError`, sentinel errors (`ErrUnsupportedFormat`, etc.)
+- `internal/utils/responses/` — HTTP response helpers: `Success`, `Created`, `NoContent`, `Accepted`, `ErrorResponse` (maps typed errors to status codes)
+- `internal/server/authentication/` — `Authenticator` interface + implementations: `BearerAuthenticator` (static token, local dev), `ZitadelAuthenticator` (OIDC JWT via JWKS). `NewAuthenticator(ctx, cfg, log)` factory selects based on `AUTHENTICATION_TYPE` (`"zitadel"` or `"bearer"`).
 
 **Adding a new domain:**
 1. Simple domain: create `handler.go` + `router.go` following the `health` pattern
-2. Rich domain: follow the `resize` pattern — `types.go`, `parser.go`, `handler.go`, `router.go`, `service.go`
+2. Rich domain: follow the full layer pattern above
 3. Call `<name>.Register(apiRouter, api)` in `main.go`
 
 ## Infrastructure
@@ -52,9 +58,9 @@ Copy `.env.example` to `.env`. Key flags:
 |---|---|
 | `REDIS_ENABLED` | Toggle Redis caching |
 | `S3_ENABLED` | Toggle MinIO/S3 object storage |
-| `ZITADEL_ENABLED` | Use Zitadel OIDC auth (false = `API_TOKEN` bearer auth) |
+| `AUTHENTICATION_TYPE` | `zitadel` or `bearer` — selects the auth implementation |
 
-For local dev: `ZITADEL_ENABLED=false` and set `API_TOKEN=dev-token-12345`. MinIO defaults use `minioadmin/minioadmin`.
+For local dev: `AUTHENTICATION_TYPE=bearer` and set `API_TOKEN=dev-token-12345`. MinIO defaults use `minioadmin/minioadmin`.
 
 ## Dependencies
 
