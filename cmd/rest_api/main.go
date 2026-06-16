@@ -28,15 +28,7 @@ import (
 	"github.com/kastoras/images-api/internal/server"
 )
 
-func main() {
-	_ = godotenv.Load()
-
-	cfg, err := config.Load()
-	if err != nil {
-		log.Fatalf("config: %v", err)
-	}
-
-	api := server.NewAPIServer(cfg)
+func setupRouter(api *server.APIServer) *mux.Router {
 	router := mux.NewRouter()
 	router.Use(middleware.Logging(api.Log))
 
@@ -50,7 +42,19 @@ func main() {
 	resize.Register(apiRouter, api)
 	jobs.Register(apiRouter, api)
 
-	if err := api.Start(router); err != nil {
+	return router
+}
+
+func main() {
+	_ = godotenv.Load()
+
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
+
+	api := server.NewAPIServer(cfg)
+	if err := api.Start(setupRouter(api)); err != nil {
 		log.Fatal(err)
 	}
 }

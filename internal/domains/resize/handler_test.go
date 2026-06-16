@@ -39,21 +39,6 @@ func assertStatus(t *testing.T, rec *httptest.ResponseRecorder, want int) {
 	}
 }
 
-func assertJSONField(t *testing.T, body []byte, field, want string) {
-	t.Helper()
-	var m map[string]any
-	if err := json.Unmarshal(body, &m); err != nil {
-		t.Fatalf("unmarshal JSON: %v", err)
-	}
-	got, ok := m[field]
-	if !ok {
-		t.Fatalf("field %q missing in JSON: %s", field, body)
-	}
-	if got != want {
-		t.Errorf("JSON field %q: expected %q, got %q", field, want, got)
-	}
-}
-
 // TestHandler_ValidationError ensures a bad request body returns 400.
 func TestHandler_ValidationError(t *testing.T) {
 	stub := &stubResizer{result: &ProcessResult{ImageData: []byte("data")}}

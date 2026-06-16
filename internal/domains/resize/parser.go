@@ -6,6 +6,7 @@ import (
 	"strconv"
 
 	internal_errors "github.com/kastoras/images-api/internal/utils/errors"
+	"github.com/kastoras/images-api/internal/utils/files"
 )
 
 var supportedTypes = map[string]bool{
@@ -32,30 +33,30 @@ func parseResizeRequest(r *http.Request) (*resizeRequest, error) {
 		return nil, internal_errors.NewValidationError("missing file field")
 	}
 	if !supportedTypes[fileHeader.Header.Get("Content-Type")] {
-		file.Close()
+		defer files.SafeClose(file)
 		return nil, internal_errors.ErrUnsupportedFormat
 	}
 
 	width, err := parseWidth(r.FormValue("width"))
 	if err != nil {
-		file.Close()
+		defer files.SafeClose(file)
 		return nil, err
 	}
 
 	height, err := parseHeight(r.FormValue("height"))
 	if err != nil {
-		file.Close()
+		defer files.SafeClose(file)
 		return nil, err
 	}
 
 	mode, err := parseMode(r.FormValue("mode"))
 	if err != nil {
-		file.Close()
+		defer files.SafeClose(file)
 		return nil, err
 	}
 
 	if err := validateDimensions(width, height, mode); err != nil {
-		file.Close()
+		defer files.SafeClose(file)
 		return nil, err
 	}
 
