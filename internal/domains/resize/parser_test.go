@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	internal_errors "github.com/kastoras/images-api/internal/utils/errors"
+	"github.com/kastoras/images-api/internal/utils/files"
 )
 
 // buildMultipartRequest constructs an *http.Request with a multipart/form-data body
@@ -120,7 +121,7 @@ func TestParseResizeRequest_ValidJPEG(t *testing.T) {
 	if result.File == nil {
 		t.Error("expected non-nil File")
 	} else {
-		result.File.Close()
+		files.SafeClose(result.File)
 	}
 }
 
@@ -201,7 +202,7 @@ func TestParseResizeRequest_WidthOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error for width-only request, got: %v", err)
 	}
-	defer result.File.Close()
+	defer files.SafeClose(result.File)
 	if result.Width != 100 {
 		t.Errorf("expected Width=100, got %d", result.Width)
 	}
@@ -216,7 +217,7 @@ func TestParseResizeRequest_HeightOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error for height-only request, got: %v", err)
 	}
-	defer result.File.Close()
+	defer files.SafeClose(result.File)
 	if result.Width != 0 {
 		t.Errorf("expected Width=0 (absent), got %d", result.Width)
 	}
@@ -260,7 +261,7 @@ func TestParseResizeRequest_SupportedTypes(t *testing.T) {
 			}
 			continue
 		}
-		result.File.Close()
+		files.SafeClose(result.File)
 	}
 }
 
@@ -270,7 +271,7 @@ func TestParseResizeRequest_DefaultModeIsExact(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
-	defer result.File.Close()
+	defer files.SafeClose(result.File)
 	if result.Mode != ResizeModeExact {
 		t.Errorf("expected default Mode=%q, got %q", ResizeModeExact, result.Mode)
 	}
@@ -282,7 +283,7 @@ func TestParseResizeRequest_ModeFit(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
-	defer result.File.Close()
+	defer files.SafeClose(result.File)
 	if result.Mode != ResizeModeFit {
 		t.Errorf("expected Mode=%q, got %q", ResizeModeFit, result.Mode)
 	}
@@ -294,7 +295,7 @@ func TestParseResizeRequest_ModeFill(t *testing.T) {
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
-	defer result.File.Close()
+	defer files.SafeClose(result.File)
 	if result.Mode != ResizeModeFill {
 		t.Errorf("expected Mode=%q, got %q", ResizeModeFill, result.Mode)
 	}
