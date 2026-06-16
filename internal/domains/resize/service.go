@@ -122,7 +122,7 @@ func (svc *Service) Process(ctx context.Context, jobID string, job *models.Job) 
 	if err != nil {
 		return fmt.Errorf("download original: %w", err)
 	}
-	defer body.Close()
+	defer func() { _ = body.Close() }()
 
 	src, err := imaging.Decode(body)
 	if err != nil {

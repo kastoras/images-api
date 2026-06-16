@@ -53,17 +53,15 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
-	s, err = env_parameters.GetString("REDIS_ENABLED", "false")
+	cfg.RedisEnabled, err = env_parameters.GetBool("REDIS_ENABLED", false)
 	if err != nil {
 		return nil, err
 	}
-	cfg.RedisEnabled, _ = strconv.ParseBool(s)
 
-	s, err = env_parameters.GetString("S3_ENABLED", "false")
+	cfg.S3Enabled, err = env_parameters.GetBool("S3_ENABLED", false)
 	if err != nil {
 		return nil, err
 	}
-	cfg.S3Enabled, _ = strconv.ParseBool(s)
 
 	cfg.AuthenticationType, err = env_parameters.GetString("AUTHENTICATION_TYPE", "bearer")
 	if err != nil {
@@ -131,20 +129,18 @@ func Load() (*Config, error) {
 	}
 	cfg.S3UsePathStyle, _ = strconv.ParseBool(s)
 
-	s, err = env_parameters.GetString("MAX_WORKERS", "10")
+	cfg.MaxWorkers, err = env_parameters.GetInt("MAX_WORKERS", 10)
 	if err != nil {
 		return nil, err
 	}
-	cfg.MaxWorkers, _ = strconv.Atoi(s)
 	if cfg.MaxWorkers <= 0 {
 		cfg.MaxWorkers = 10
 	}
 
-	s, err = env_parameters.GetString("MAX_QUEUE_DEPTH", "50")
+	cfg.MaxQueueDepth, err = env_parameters.GetInt("MAX_QUEUE_DEPTH", 50)
 	if err != nil {
 		return nil, err
 	}
-	cfg.MaxQueueDepth, _ = strconv.Atoi(s)
 	if cfg.MaxQueueDepth <= 0 {
 		cfg.MaxQueueDepth = 50
 	}
