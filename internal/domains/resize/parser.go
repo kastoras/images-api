@@ -3,47 +3,33 @@ package resize
 import (
 	"mime/multipart"
 	"net/http"
-	"strconv"
 
+	"github.com/kastoras/images-api/internal/imageprocessing"
 	internal_errors "github.com/kastoras/images-api/internal/utils/errors"
 	"github.com/kastoras/images-api/internal/utils/files"
+	form "github.com/kastoras/images-api/internal/utils/requests"
 )
-
-var supportedTypes = map[string]bool{
-	"image/jpeg": true,
-	"image/png":  true,
-	"image/gif":  true,
-	"image/tiff": true,
-}
 
 type resizeRequest struct {
 	File   multipart.File
 	Width  int
 	Height int
-	Mode   ResizeMode
+	Mode   imageprocessing.ResizeMode
 }
 
 func parseResizeRequest(r *http.Request) (*resizeRequest, error) {
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		return nil, internal_errors.NewValidationError("invalid multipart form")
-	}
-
-	file, fileHeader, err := r.FormFile("file")
+	file, _, err := form.ParseImageFile(r, imageprocessing.SupportedMIMETypes)
 	if err != nil {
-		return nil, internal_errors.NewValidationError("missing file field")
-	}
-	if !supportedTypes[fileHeader.Header.Get("Content-Type")] {
-		defer files.SafeClose(file)
-		return nil, internal_errors.ErrUnsupportedFormat
+		return nil, err
 	}
 
-	width, err := parseWidth(r.FormValue("width"))
+	width, err := form.ParseOptionalInt(r, "width")
 	if err != nil {
 		defer files.SafeClose(file)
 		return nil, err
 	}
 
-	height, err := parseHeight(r.FormValue("height"))
+	height, err := form.ParseOptionalInt(r, "height")
 	if err != nil {
 		defer files.SafeClose(file)
 		return nil, err
@@ -63,46 +49,24 @@ func parseResizeRequest(r *http.Request) (*resizeRequest, error) {
 	return &resizeRequest{File: file, Width: width, Height: height, Mode: mode}, nil
 }
 
-func parseWidth(s string) (int, error) {
-	if s == "" {
-		return 0, nil
-	}
-	n, err := strconv.Atoi(s)
-	if err != nil || n <= 0 {
-		return 0, internal_errors.NewValidationError("width must be a positive integer")
-	}
-	return n, nil
-}
-
-func parseHeight(s string) (int, error) {
-	if s == "" {
-		return 0, nil
-	}
-	n, err := strconv.Atoi(s)
-	if err != nil || n <= 0 {
-		return 0, internal_errors.NewValidationError("height must be a positive integer")
-	}
-	return n, nil
-}
-
-func parseMode(s string) (ResizeMode, error) {
-	mode := ResizeMode(s)
+func parseMode(s string) (imageprocessing.ResizeMode, error) {
+	mode := imageprocessing.ResizeMode(s)
 	if mode == "" {
-		mode = ResizeModeExact
+		mode = imageprocessing.ResizeModeExact
 	}
 	switch mode {
-	case ResizeModeExact, ResizeModeFit, ResizeModeFill:
+	case imageprocessing.ResizeModeExact, imageprocessing.ResizeModeFit, imageprocessing.ResizeModeFill:
 		return mode, nil
 	default:
 		return "", internal_errors.NewValidationError("mode must be one of: exact, fit, fill")
 	}
 }
 
-func validateDimensions(width, height int, mode ResizeMode) error {
+func validateDimensions(width, height int, mode imageprocessing.ResizeMode) error {
 	if width == 0 && height == 0 {
 		return internal_errors.NewValidationError("at least one of width or height must be provided")
 	}
-	if (width == 0 || height == 0) && (mode == ResizeModeFit || mode == ResizeModeFill) {
+	if (width == 0 || height == 0) && (mode == imageprocessing.ResizeModeFit || mode == imageprocessing.ResizeModeFill) {
 		return internal_errors.NewValidationError("mode=fit and mode=fill require both width and height")
 	}
 	return nil

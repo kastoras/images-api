@@ -6,6 +6,7 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/kastoras/images-api/internal/imageprocessing"
 	"github.com/kastoras/images-api/internal/server"
 	internal_errors "github.com/kastoras/images-api/internal/utils/errors"
 )
@@ -26,7 +27,7 @@ func TestService_ProcessImmediate_StorageNil(t *testing.T) {
 	s := minimalAPIServer(1, 50)
 	svc := NewService(s)
 
-	result, err := svc.processImmediate(context.Background(), bytes.NewReader(minimalJPEG), ResizeOptions{Width: 2, Height: 2, Mode: ResizeModeExact})
+	result, err := svc.processImmediate(context.Background(), bytes.NewReader(minimalJPEG), imageprocessing.ResizeOptions{Width: 2, Height: 2, Mode: imageprocessing.ResizeModeExact})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -47,7 +48,7 @@ func TestService_Resize_SemaphoreFull_NilCacheAndStorage(t *testing.T) {
 
 	svc := NewService(s)
 
-	_, err := svc.Resize(context.Background(), bytes.NewReader(minimalJPEG), ResizeOptions{Width: 2, Height: 2, Mode: ResizeModeExact})
+	_, err := svc.Resize(context.Background(), bytes.NewReader(minimalJPEG), imageprocessing.ResizeOptions{Width: 2, Height: 2, Mode: imageprocessing.ResizeModeExact})
 	if err == nil {
 		t.Fatal("expected error when semaphore is full and cache/storage are nil")
 	}
@@ -62,7 +63,7 @@ func TestService_Enqueue_NilCache(t *testing.T) {
 	// Cache and Storage are already nil.
 	svc := NewService(s)
 
-	_, err := svc.enqueue(context.Background(), bytes.NewReader(minimalJPEG), ResizeOptions{Width: 2, Height: 2, Mode: ResizeModeExact})
+	_, err := svc.enqueue(context.Background(), bytes.NewReader(minimalJPEG), imageprocessing.ResizeOptions{Width: 2, Height: 2, Mode: imageprocessing.ResizeModeExact})
 	if err == nil {
 		t.Fatal("expected error when Cache is nil")
 	}
@@ -76,7 +77,7 @@ func TestService_ProcessImmediate_InvalidImage(t *testing.T) {
 	s := minimalAPIServer(1, 50)
 	svc := NewService(s)
 
-	_, err := svc.processImmediate(context.Background(), bytes.NewReader([]byte("not an image")), ResizeOptions{Width: 10, Height: 10, Mode: ResizeModeExact})
+	_, err := svc.processImmediate(context.Background(), bytes.NewReader([]byte("not an image")), imageprocessing.ResizeOptions{Width: 10, Height: 10, Mode: imageprocessing.ResizeModeExact})
 	if err == nil {
 		t.Fatal("expected error for invalid image bytes")
 	}
@@ -91,7 +92,7 @@ func TestService_Resize_SemaphoreAvailable_StorageNil(t *testing.T) {
 	s := minimalAPIServer(1, 50)
 	svc := NewService(s)
 
-	result, err := svc.Resize(context.Background(), bytes.NewReader(minimalJPEG), ResizeOptions{Width: 2, Height: 2, Mode: ResizeModeExact})
+	result, err := svc.Resize(context.Background(), bytes.NewReader(minimalJPEG), imageprocessing.ResizeOptions{Width: 2, Height: 2, Mode: imageprocessing.ResizeModeExact})
 	if err != nil {
 		t.Fatalf("expected no error, got: %v", err)
 	}
@@ -109,7 +110,7 @@ func TestService_ProcessImmediate_WidthOnly(t *testing.T) {
 	s := minimalAPIServer(1, 50)
 	svc := NewService(s)
 
-	result, err := svc.processImmediate(context.Background(), bytes.NewReader(minimalJPEG), ResizeOptions{Width: 2, Height: 0, Mode: ResizeModeExact})
+	result, err := svc.processImmediate(context.Background(), bytes.NewReader(minimalJPEG), imageprocessing.ResizeOptions{Width: 2, Height: 0, Mode: imageprocessing.ResizeModeExact})
 	if err != nil {
 		t.Fatalf("expected no error for width-only resize, got: %v", err)
 	}
@@ -124,7 +125,7 @@ func TestService_ProcessImmediate_HeightOnly(t *testing.T) {
 	s := minimalAPIServer(1, 50)
 	svc := NewService(s)
 
-	result, err := svc.processImmediate(context.Background(), bytes.NewReader(minimalJPEG), ResizeOptions{Width: 0, Height: 2, Mode: ResizeModeExact})
+	result, err := svc.processImmediate(context.Background(), bytes.NewReader(minimalJPEG), imageprocessing.ResizeOptions{Width: 0, Height: 2, Mode: imageprocessing.ResizeModeExact})
 	if err != nil {
 		t.Fatalf("expected no error for height-only resize, got: %v", err)
 	}

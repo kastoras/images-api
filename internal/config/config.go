@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"strconv"
 	"time"
 
@@ -63,27 +64,7 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
-	cfg.AuthenticationType, err = env_parameters.GetString("AUTHENTICATION_TYPE", "bearer")
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.APIToken, err = env_parameters.GetString("API_TOKEN", "")
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.ZitadelIssuer, err = env_parameters.GetString("ZITADEL_ISSUER", "")
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.ZitadelClientID, err = env_parameters.GetString("ZITADEL_CLIENT_ID", "")
-	if err != nil {
-		return nil, err
-	}
-
-	cfg.ZitadelAudience, err = env_parameters.GetString("ZITADEL_AUDIENCE", "image-api")
+	err = cfg.authenticationConfig()
 	if err != nil {
 		return nil, err
 	}
@@ -171,4 +152,39 @@ func Load() (*Config, error) {
 	}
 
 	return cfg, nil
+}
+
+func (c *Config) authenticationConfig() error {
+	var err error
+
+	c.AuthenticationType, err = env_parameters.GetString("AUTHENTICATION_TYPE", "bearer")
+	if err != nil {
+		return err
+	}
+
+	switch c.AuthenticationType {
+	case "bearer":
+		c.APIToken, err = env_parameters.GetString("API_TOKEN", "")
+		if err != nil {
+			return err
+		}
+		return nil
+	case "zitadel":
+		c.ZitadelIssuer, err = env_parameters.GetString("ZITADEL_ISSUER", "")
+		if err != nil {
+			return err
+		}
+
+		c.ZitadelClientID, err = env_parameters.GetString("ZITADEL_CLIENT_ID", "")
+		if err != nil {
+			return err
+		}
+
+		c.ZitadelAudience, err = env_parameters.GetString("ZITADEL_AUDIENCE", "image-api")
+		if err != nil {
+			return err
+		}
+	}
+
+	return fmt.Errorf("no supported authentication type selected: %w", err)
 }

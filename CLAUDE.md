@@ -15,7 +15,18 @@ go test ./...
 docker compose logs images-api
 ```
 
-To verify a code change: check `docker compose logs images-api` (Air rebuilds automatically), run `go test ./...`, and run `golangci-lint run`.
+## Verification
+
+# Run all tests
+go test ./...
+
+# Run Linter
+golangci-lint run
+
+# Check logs for errors
+docker compose logs images-api
+
+No need to build, Air rebuilds automatically
 
 ## Architecture
 

@@ -4,12 +4,11 @@ import (
 	"bytes"
 	"context"
 	"fmt"
-	"image"
 	"io"
 	"time"
 
-	"github.com/disintegration/imaging"
 	"github.com/google/uuid"
+	"github.com/kastoras/images-api/internal/imageprocessing"
 	"github.com/kastoras/images-api/internal/models"
 	"github.com/kastoras/images-api/internal/server"
 	internal_errors "github.com/kastoras/images-api/internal/utils/errors"
@@ -23,7 +22,7 @@ func NewService(s *server.APIServer) *Service {
 	return &Service{server: s}
 }
 
-func (svc *Service) Resize(ctx context.Context, file io.Reader, opts ResizeOptions) (*ProcessResult, error) {
+func (svc *Service) Resize(ctx context.Context, file io.Reader, opts imageprocessing.ResizeOptions) (*ProcessResult, error) {
 	select {
 	case svc.server.Semaphore <- struct{}{}:
 		defer func() { <-svc.server.Semaphore }()
@@ -33,24 +32,16 @@ func (svc *Service) Resize(ctx context.Context, file io.Reader, opts ResizeOptio
 	}
 }
 
-func (svc *Service) processImmediate(ctx context.Context, file io.Reader, opts ResizeOptions) (*ProcessResult, error) {
-	src, err := imaging.Decode(file)
+func (svc *Service) processImmediate(ctx context.Context, file io.Reader, opts imageprocessing.ResizeOptions) (*ProcessResult, error) {
+	src, err := imageprocessing.Decode(file)
 	if err != nil {
-		return nil, internal_errors.ErrUnsupportedFormat
+		return nil, err
 	}
 
-	var resized image.Image
-	switch opts.Mode {
-	case ResizeModeFit:
-		resized = imaging.Fit(src, opts.Width, opts.Height, imaging.Lanczos)
-	case ResizeModeFill:
-		resized = imaging.Fill(src, opts.Width, opts.Height, imaging.Center, imaging.Lanczos)
-	default:
-		resized = imaging.Resize(src, opts.Width, opts.Height, imaging.Lanczos)
-	}
+	resized := imageprocessing.Resize(src, opts)
 
 	var buf bytes.Buffer
-	if err := imaging.Encode(&buf, resized, imaging.JPEG); err != nil {
+	if err := imageprocessing.EncodeJPEG(&buf, resized); err != nil {
 		return nil, fmt.Errorf("encode image: %w", err)
 	}
 
@@ -73,7 +64,7 @@ func (svc *Service) processImmediate(ctx context.Context, file io.Reader, opts R
 	return &ProcessResult{URL: url}, nil
 }
 
-func (svc *Service) enqueue(ctx context.Context, file io.Reader, opts ResizeOptions) (*ProcessResult, error) {
+func (svc *Service) enqueue(ctx context.Context, file io.Reader, opts imageprocessing.ResizeOptions) (*ProcessResult, error) {
 	if svc.server.Cache == nil || svc.server.Storage == nil {
 		return nil, internal_errors.ErrTooManyRequests
 	}
@@ -124,31 +115,24 @@ func (svc *Service) Process(ctx context.Context, jobID string, job *models.Job) 
 	}
 	defer func() { _ = body.Close() }()
 
-	src, err := imaging.Decode(body)
+	src, err := imageprocessing.Decode(body)
 	if err != nil {
 		return fmt.Errorf("decode image: %w", err)
 	}
 
-	width := int(job.Params["width"].(float64))
-	height := int(job.Params["height"].(float64))
-	modeStr, _ := job.Params["mode"].(string)
-	mode := ResizeMode(modeStr)
-	if mode == "" {
-		mode = ResizeModeExact
+	opts := imageprocessing.ResizeOptions{
+		Width:  int(job.Params["width"].(float64)),
+		Height: int(job.Params["height"].(float64)),
+		Mode:   imageprocessing.ResizeMode(job.Params["mode"].(string)),
+	}
+	if opts.Mode == "" {
+		opts.Mode = imageprocessing.ResizeModeExact
 	}
 
-	var resized image.Image
-	switch mode {
-	case ResizeModeFit:
-		resized = imaging.Fit(src, width, height, imaging.Lanczos)
-	case ResizeModeFill:
-		resized = imaging.Fill(src, width, height, imaging.Center, imaging.Lanczos)
-	default:
-		resized = imaging.Resize(src, width, height, imaging.Lanczos)
-	}
+	resized := imageprocessing.Resize(src, opts)
 
 	var buf bytes.Buffer
-	if err := imaging.Encode(&buf, resized, imaging.JPEG); err != nil {
+	if err := imageprocessing.EncodeJPEG(&buf, resized); err != nil {
 		return fmt.Errorf("encode image: %w", err)
 	}
 

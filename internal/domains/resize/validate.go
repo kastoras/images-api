@@ -3,7 +3,9 @@ package resize
 import (
 	"net/http"
 
+	"github.com/kastoras/images-api/internal/imageprocessing"
 	internal_errors "github.com/kastoras/images-api/internal/utils/errors"
+	form "github.com/kastoras/images-api/internal/utils/requests"
 )
 
 func validateRequest(r *http.Request) error {
@@ -15,15 +17,15 @@ func validateRequest(r *http.Request) error {
 	if len(files) == 0 {
 		return internal_errors.NewValidationError("missing file field")
 	}
-	if !supportedTypes[files[0].Header.Get("Content-Type")] {
+	if !imageprocessing.SupportedMIMETypes[files[0].Header.Get("Content-Type")] {
 		return internal_errors.ErrUnsupportedFormat
 	}
 
-	width, err := parseWidth(r.FormValue("width"))
+	width, err := form.ParseOptionalInt(r, "width")
 	if err != nil {
 		return err
 	}
-	height, err := parseHeight(r.FormValue("height"))
+	height, err := form.ParseOptionalInt(r, "height")
 	if err != nil {
 		return err
 	}
