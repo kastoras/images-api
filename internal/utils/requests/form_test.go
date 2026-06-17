@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	internal_errors "github.com/kastoras/images-api/internal/utils/errors"
+	"github.com/kastoras/images-api/internal/utils/files"
 )
 
 var allowedMIME = map[string]bool{
@@ -70,7 +71,7 @@ func TestParseImageFile_Valid(t *testing.T) {
 	if file == nil {
 		t.Fatal("expected non-nil file")
 	}
-	file.Close()
+	files.SafeClose(file)
 	if header == nil {
 		t.Fatal("expected non-nil header")
 	}
@@ -127,7 +128,7 @@ func TestParseImageFile_AllAllowedTypes(t *testing.T) {
 			t.Errorf("content-type %q should be allowed, got: %v", ct, err)
 			continue
 		}
-		file.Close()
+		files.SafeClose(file)
 	}
 }
 

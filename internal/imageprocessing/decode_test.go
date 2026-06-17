@@ -82,4 +82,3 @@ func TestEncodeJPEG_OutputIsJPEG(t *testing.T) {
 		t.Errorf("output does not start with JPEG magic bytes, got: %x", b[:min(4, len(b))])
 	}
 }
-
