@@ -3,11 +3,11 @@ package resize
 import (
 	"mime/multipart"
 	"net/http"
-	"strconv"
 
 	"github.com/kastoras/images-api/internal/imageprocessing"
 	internal_errors "github.com/kastoras/images-api/internal/utils/errors"
 	"github.com/kastoras/images-api/internal/utils/files"
+	form "github.com/kastoras/images-api/internal/utils/requests"
 )
 
 type resizeRequest struct {
@@ -18,26 +18,18 @@ type resizeRequest struct {
 }
 
 func parseResizeRequest(r *http.Request) (*resizeRequest, error) {
-	if err := r.ParseMultipartForm(32 << 20); err != nil {
-		return nil, internal_errors.NewValidationError("invalid multipart form")
-	}
-
-	file, fileHeader, err := r.FormFile("file")
+	file, _, err := form.ParseImageFile(r, imageprocessing.SupportedMIMETypes)
 	if err != nil {
-		return nil, internal_errors.NewValidationError("missing file field")
-	}
-	if !imageprocessing.SupportedMIMETypes[fileHeader.Header.Get("Content-Type")] {
-		defer files.SafeClose(file)
-		return nil, internal_errors.ErrUnsupportedFormat
+		return nil, err
 	}
 
-	width, err := parseWidth(r.FormValue("width"))
+	width, err := form.ParseOptionalInt(r, "width")
 	if err != nil {
 		defer files.SafeClose(file)
 		return nil, err
 	}
 
-	height, err := parseHeight(r.FormValue("height"))
+	height, err := form.ParseOptionalInt(r, "height")
 	if err != nil {
 		defer files.SafeClose(file)
 		return nil, err
@@ -55,28 +47,6 @@ func parseResizeRequest(r *http.Request) (*resizeRequest, error) {
 	}
 
 	return &resizeRequest{File: file, Width: width, Height: height, Mode: mode}, nil
-}
-
-func parseWidth(s string) (int, error) {
-	if s == "" {
-		return 0, nil
-	}
-	n, err := strconv.Atoi(s)
-	if err != nil || n <= 0 {
-		return 0, internal_errors.NewValidationError("width must be a positive integer")
-	}
-	return n, nil
-}
-
-func parseHeight(s string) (int, error) {
-	if s == "" {
-		return 0, nil
-	}
-	n, err := strconv.Atoi(s)
-	if err != nil || n <= 0 {
-		return 0, internal_errors.NewValidationError("height must be a positive integer")
-	}
-	return n, nil
 }
 
 func parseMode(s string) (imageprocessing.ResizeMode, error) {
