@@ -3,6 +3,7 @@ package resize
 import (
 	"net/http"
 
+	"github.com/kastoras/images-api/internal/imageprocessing"
 	"github.com/kastoras/images-api/internal/utils/files"
 	"github.com/kastoras/images-api/internal/utils/responses"
 )
@@ -26,7 +27,7 @@ func (h *Handler) Resize(w http.ResponseWriter, r *http.Request) {
 	}
 	defer files.SafeClose(req.File)
 
-	resOptions := ResizeOptions{
+	resOptions := imageprocessing.ResizeOptions{
 		Width:  req.Width,
 		Height: req.Height,
 		Mode:   req.Mode,

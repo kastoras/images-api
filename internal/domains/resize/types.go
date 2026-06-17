@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"github.com/kastoras/images-api/internal/imageprocessing"
 	internal_errors "github.com/kastoras/images-api/internal/utils/errors"
 )
 
@@ -15,26 +16,6 @@ var (
 
 type Handler struct {
 	service Resizer
-}
-
-type ResizeMode string
-
-const (
-	ResizeModeExact ResizeMode = "exact"
-	ResizeModeFit   ResizeMode = "fit"
-	ResizeModeFill  ResizeMode = "fill"
-)
-
-type ResizeParseRequest struct {
-	Width  int
-	Height int
-	Mode   ResizeMode
-}
-
-type ResizeOptions struct {
-	Width  int
-	Height int
-	Mode   ResizeMode
 }
 
 type ProcessResult struct {
@@ -50,5 +31,5 @@ type resizeResult struct {
 
 // Resizer is the interface the Handler depends on. *Service satisfies it.
 type Resizer interface {
-	Resize(ctx context.Context, file io.Reader, opts ResizeOptions) (*ProcessResult, error)
+	Resize(ctx context.Context, file io.Reader, opts imageprocessing.ResizeOptions) (*ProcessResult, error)
 }

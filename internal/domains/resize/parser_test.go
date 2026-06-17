@@ -9,6 +9,7 @@ import (
 	"net/textproto"
 	"testing"
 
+	"github.com/kastoras/images-api/internal/imageprocessing"
 	internal_errors "github.com/kastoras/images-api/internal/utils/errors"
 	"github.com/kastoras/images-api/internal/utils/files"
 )
@@ -272,8 +273,8 @@ func TestParseResizeRequest_DefaultModeIsExact(t *testing.T) {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 	defer files.SafeClose(result.File)
-	if result.Mode != ResizeModeExact {
-		t.Errorf("expected default Mode=%q, got %q", ResizeModeExact, result.Mode)
+	if result.Mode != imageprocessing.ResizeModeExact {
+		t.Errorf("expected default Mode=%q, got %q", imageprocessing.ResizeModeExact, result.Mode)
 	}
 }
 
@@ -284,8 +285,8 @@ func TestParseResizeRequest_ModeFit(t *testing.T) {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 	defer files.SafeClose(result.File)
-	if result.Mode != ResizeModeFit {
-		t.Errorf("expected Mode=%q, got %q", ResizeModeFit, result.Mode)
+	if result.Mode != imageprocessing.ResizeModeFit {
+		t.Errorf("expected Mode=%q, got %q", imageprocessing.ResizeModeFit, result.Mode)
 	}
 }
 
@@ -296,8 +297,8 @@ func TestParseResizeRequest_ModeFill(t *testing.T) {
 		t.Fatalf("expected no error, got: %v", err)
 	}
 	defer files.SafeClose(result.File)
-	if result.Mode != ResizeModeFill {
-		t.Errorf("expected Mode=%q, got %q", ResizeModeFill, result.Mode)
+	if result.Mode != imageprocessing.ResizeModeFill {
+		t.Errorf("expected Mode=%q, got %q", imageprocessing.ResizeModeFill, result.Mode)
 	}
 }
 

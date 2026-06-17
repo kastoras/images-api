@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/kastoras/images-api/internal/imageprocessing"
 )
 
 // stubResizer is a test double for the Resizer interface.
@@ -17,7 +19,7 @@ type stubResizer struct {
 	err    error
 }
 
-func (s *stubResizer) Resize(_ context.Context, _ io.Reader, _ ResizeOptions) (*ProcessResult, error) {
+func (s *stubResizer) Resize(_ context.Context, _ io.Reader, _ imageprocessing.ResizeOptions) (*ProcessResult, error) {
 	return s.result, s.err
 }
 

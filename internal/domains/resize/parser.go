@@ -5,22 +5,16 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/kastoras/images-api/internal/imageprocessing"
 	internal_errors "github.com/kastoras/images-api/internal/utils/errors"
 	"github.com/kastoras/images-api/internal/utils/files"
 )
-
-var supportedTypes = map[string]bool{
-	"image/jpeg": true,
-	"image/png":  true,
-	"image/gif":  true,
-	"image/tiff": true,
-}
 
 type resizeRequest struct {
 	File   multipart.File
 	Width  int
 	Height int
-	Mode   ResizeMode
+	Mode   imageprocessing.ResizeMode
 }
 
 func parseResizeRequest(r *http.Request) (*resizeRequest, error) {
@@ -32,7 +26,7 @@ func parseResizeRequest(r *http.Request) (*resizeRequest, error) {
 	if err != nil {
 		return nil, internal_errors.NewValidationError("missing file field")
 	}
-	if !supportedTypes[fileHeader.Header.Get("Content-Type")] {
+	if !imageprocessing.SupportedMIMETypes[fileHeader.Header.Get("Content-Type")] {
 		defer files.SafeClose(file)
 		return nil, internal_errors.ErrUnsupportedFormat
 	}
@@ -85,24 +79,24 @@ func parseHeight(s string) (int, error) {
 	return n, nil
 }
 
-func parseMode(s string) (ResizeMode, error) {
-	mode := ResizeMode(s)
+func parseMode(s string) (imageprocessing.ResizeMode, error) {
+	mode := imageprocessing.ResizeMode(s)
 	if mode == "" {
-		mode = ResizeModeExact
+		mode = imageprocessing.ResizeModeExact
 	}
 	switch mode {
-	case ResizeModeExact, ResizeModeFit, ResizeModeFill:
+	case imageprocessing.ResizeModeExact, imageprocessing.ResizeModeFit, imageprocessing.ResizeModeFill:
 		return mode, nil
 	default:
 		return "", internal_errors.NewValidationError("mode must be one of: exact, fit, fill")
 	}
 }
 
-func validateDimensions(width, height int, mode ResizeMode) error {
+func validateDimensions(width, height int, mode imageprocessing.ResizeMode) error {
 	if width == 0 && height == 0 {
 		return internal_errors.NewValidationError("at least one of width or height must be provided")
 	}
-	if (width == 0 || height == 0) && (mode == ResizeModeFit || mode == ResizeModeFill) {
+	if (width == 0 || height == 0) && (mode == imageprocessing.ResizeModeFit || mode == imageprocessing.ResizeModeFill) {
 		return internal_errors.NewValidationError("mode=fit and mode=fill require both width and height")
 	}
 	return nil
