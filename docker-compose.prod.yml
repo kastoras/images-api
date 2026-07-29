@@ -1,0 +1,100 @@
+# Production stack — Docker Swarm, deployed by .github/workflows/deploy.yml
+# through the Portainer API after the staging deploy has been approved.
+#
+# This file is NOT used for local development — see docker-compose.yml, which
+# builds the Dockerfile's `dev` target and runs MinIO.
+#
+# Swarm, not plain Compose: `restart:` and `depends_on:` are IGNORED here, so
+# restart behaviour lives under `deploy.restart_policy` and there is no startup
+# ordering between images-api and redis.
+#
+# Every ${VAR} is supplied by the Portainer stack env, rebuilt on each deploy
+# from GitHub environment secrets/variables. Adding one here means adding it to
+# .github/actions/portainer-deploy/action.yml too.
+
+services:
+  images-api:
+    image: ${IMAGES_API_DOCKERHUB_NAMESPACE}/images-api:${IMAGES_API_IMAGE_TAG}
+    ports:
+      - "${IMAGES_API_HOST_PORT:-8083}:8080"
+    environment:
+      API_PORT: "8080"
+      LOG_LEVEL: ${IMAGES_API_LOG_LEVEL}
+      READ_TIMEOUT: "15"
+      WRITE_TIMEOUT: "15"
+      IDLE_TIMEOUT: "60"
+
+      AUTHENTICATION_TYPE: ${IMAGES_API_AUTHENTICATION_TYPE}
+      API_TOKEN: ${IMAGES_API_API_TOKEN}
+
+      REDIS_ENABLED: "true"
+      REDIS_URL: redis:6379
+      REDIS_PASSWORD: ${IMAGES_API_REDIS_PASSWORD}
+
+      # S3_ENDPOINT, S3_ACCESS_KEY and S3_SECRET_KEY must be non-empty or the
+      # process exits 1 at startup — config.Load() treats "unset with an empty
+      # default" as fatal (internal/config/config.go:82-105), even when
+      # S3_ENABLED is false.
+      S3_ENABLED: "true"
+      S3_ENDPOINT: ${IMAGES_API_S3_ENDPOINT}
+      S3_REGION: ${IMAGES_API_S3_REGION}
+      S3_BUCKET: ${IMAGES_API_S3_BUCKET}
+      S3_ACCESS_KEY: ${IMAGES_API_S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${IMAGES_API_S3_SECRET_KEY}
+      S3_USE_PATH_STYLE: ${IMAGES_API_S3_USE_PATH_STYLE}
+
+      MAX_WORKERS: ${IMAGES_API_MAX_WORKERS}
+      MAX_QUEUE_DEPTH: ${IMAGES_API_MAX_QUEUE_DEPTH}
+      PROCESSING_TIMEOUT: ${IMAGES_API_PROCESSING_TIMEOUT}
+    networks:
+      - internal
+      - wedbuddy-shared
+    # No healthcheck: the final image is distroless/static — no shell, no curl,
+    # no wget, so any probe fails. /health is unauthenticated; monitor it from
+    # the reverse proxy or an external uptime check instead.
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+        delay: 5s
+      update_config:
+        order: start-first
+        failure_action: rollback
+        delay: 10s
+      rollback_config:
+        order: stop-first
+
+  redis:
+    image: redis:8.8.0-alpine
+    command: redis-server --requirepass ${IMAGES_API_REDIS_PASSWORD} --appendonly yes
+    volumes:
+      - redis-data:/data
+    networks:
+      - internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${IMAGES_API_REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    deploy:
+      replicas: 1
+      restart_policy:
+        condition: any
+      # Pins the volume to one node so the data does not move with the task.
+      placement:
+        constraints:
+          - node.role == manager
+    # Deliberately no published ports — reachable only from images-api.
+
+volumes:
+  redis-data:
+
+networks:
+  internal:
+    driver: overlay
+  # Must already exist on the swarm as an ATTACHABLE OVERLAY network — a plain
+  # bridge (as created by the dev Makefile) cannot be attached to a swarm
+  # service. Create with:
+  #   docker network create --driver overlay --attachable wedbuddy-shared
+  wedbuddy-shared:
+    external: true

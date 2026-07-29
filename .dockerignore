@@ -1,0 +1,37 @@
+# Keeps secrets and dev-only files out of the build context. The builder stage
+# does `COPY . .`, so anything not listed here lands in an image layer.
+
+# Environment — never let real credentials into a layer
+.env
+.env.*
+!.env.example
+
+# VCS & CI
+.git
+.gitignore
+.github
+
+# Local tooling / editor state
+.claude
+.idea
+.vscode
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Build & test artifacts
+bin/
+dist/
+tmp/
+*.test
+coverage.out
+coverage.html
+
+# Dev-only compose and docs
+docker-compose.yml
+docker-compose.prod.yml
+docker-compose.staging.yml
+*.md
+LICENSE
+insomnia*.json

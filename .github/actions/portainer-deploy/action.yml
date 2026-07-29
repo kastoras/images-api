@@ -1,0 +1,244 @@
+# Shared by the staging and production jobs in .github/workflows/deploy.yml.
+# Updates an existing Portainer stack in place; it never creates one.
+name: Portainer stack deploy
+description: Push a compose file to an existing Portainer stack and pull the new image.
+
+inputs:
+  portainer-url:
+    description: Portainer base URL, no trailing slash (e.g. https://localhost:9443).
+    required: true
+  portainer-token:
+    description: Portainer API key, sent as X-API-Key.
+    required: true
+  portainer-endpoint-id:
+    description: Portainer environment/endpoint id.
+    required: true
+  portainer-stack-name:
+    description: Name of the pre-created stack to update.
+    required: true
+  portainer-insecure:
+    description: >
+      Set to "true" to skip TLS verification. Needed for Portainer's :9443,
+      which serves a self-signed certificate. Must stay false for a public URL.
+    required: false
+    default: "false"
+  compose-file:
+    description: Path to the compose file to push as the stack definition.
+    required: true
+  image-tag:
+    description: Image tag to deploy — a commit SHA, or "latest".
+    required: true
+  dockerhub-namespace:
+    description: Docker Hub namespace the image lives under.
+    required: true
+  api-token:
+    description: Bearer token the API validates.
+    required: true
+  redis-password:
+    description: Redis password.
+    required: true
+  s3-access-key:
+    description: S3 access key (MinIO root user on staging).
+    required: true
+  s3-secret-key:
+    description: S3 secret key (MinIO root password on staging).
+    required: true
+  s3-endpoint:
+    description: S3 endpoint URL.
+    required: true
+  s3-region:
+    description: S3 region.
+    required: true
+  s3-bucket:
+    description: S3 bucket name.
+    required: true
+  s3-use-path-style:
+    description: "true for MinIO, false for most real S3 providers."
+    required: true
+  authentication-type:
+    description: bearer or zitadel.
+    required: true
+  log-level:
+    description: Application log level.
+    required: true
+  max-workers:
+    description: Bounded semaphore size.
+    required: true
+  max-queue-depth:
+    description: Async queue depth.
+    required: true
+  processing-timeout:
+    description: Per-image processing timeout, in seconds.
+    required: true
+  traefik-host:
+    description: Host rule for Traefik. Staging only — leave empty on production.
+    required: false
+    default: ""
+  host-port:
+    description: Published host port. Production only — leave empty on staging.
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - name: Deploy via Portainer API
+      shell: bash
+      env:
+        PORTAINER_URL: ${{ inputs.portainer-url }}
+        PORTAINER_TOKEN: ${{ inputs.portainer-token }}
+        PORTAINER_ENDPOINT_ID: ${{ inputs.portainer-endpoint-id }}
+        PORTAINER_STACK_NAME: ${{ inputs.portainer-stack-name }}
+        PORTAINER_INSECURE: ${{ inputs.portainer-insecure }}
+        COMPOSE_FILE_PATH: ${{ inputs.compose-file }}
+        IMAGES_API_IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGES_API_DOCKERHUB_NAMESPACE: ${{ inputs.dockerhub-namespace }}
+        IMAGES_API_API_TOKEN: ${{ inputs.api-token }}
+        IMAGES_API_REDIS_PASSWORD: ${{ inputs.redis-password }}
+        IMAGES_API_S3_ACCESS_KEY: ${{ inputs.s3-access-key }}
+        IMAGES_API_S3_SECRET_KEY: ${{ inputs.s3-secret-key }}
+        IMAGES_API_S3_ENDPOINT: ${{ inputs.s3-endpoint }}
+        IMAGES_API_S3_REGION: ${{ inputs.s3-region }}
+        IMAGES_API_S3_BUCKET: ${{ inputs.s3-bucket }}
+        IMAGES_API_S3_USE_PATH_STYLE: ${{ inputs.s3-use-path-style }}
+        IMAGES_API_AUTHENTICATION_TYPE: ${{ inputs.authentication-type }}
+        IMAGES_API_LOG_LEVEL: ${{ inputs.log-level }}
+        IMAGES_API_MAX_WORKERS: ${{ inputs.max-workers }}
+        IMAGES_API_MAX_QUEUE_DEPTH: ${{ inputs.max-queue-depth }}
+        IMAGES_API_PROCESSING_TIMEOUT: ${{ inputs.processing-timeout }}
+        IMAGES_API_HOST: ${{ inputs.traefik-host }}
+        IMAGES_API_HOST_PORT: ${{ inputs.host-port }}
+      run: |
+        set -euo pipefail
+
+        for tool in curl jq; do
+          command -v "$tool" >/dev/null 2>&1 || { echo "Required tool not found on this runner: $tool"; exit 1; }
+        done
+
+        if [ ! -f "$COMPOSE_FILE_PATH" ]; then
+          echo "Compose file not found: $COMPOSE_FILE_PATH"
+          exit 1
+        fi
+
+        # Portainer's :9443 uses a self-signed cert; the staging runner reaches it
+        # over localhost, so verification is skipped there and only there.
+        CURL_OPTS=(-sS)
+        if [ "$PORTAINER_INSECURE" = "true" ]; then
+          echo "TLS verification disabled (PORTAINER_INSECURE=true)"
+          CURL_OPTS+=(--insecure)
+        fi
+
+        API_HEADERS=(-H "X-API-Key: $PORTAINER_TOKEN" -H "Content-Type: application/json")
+
+        REQUIRED_VARS=(
+          PORTAINER_URL
+          PORTAINER_TOKEN
+          PORTAINER_ENDPOINT_ID
+          PORTAINER_STACK_NAME
+          IMAGES_API_IMAGE_TAG
+          IMAGES_API_DOCKERHUB_NAMESPACE
+          IMAGES_API_API_TOKEN
+          IMAGES_API_REDIS_PASSWORD
+          IMAGES_API_S3_ACCESS_KEY
+          IMAGES_API_S3_SECRET_KEY
+          IMAGES_API_S3_ENDPOINT
+          IMAGES_API_S3_REGION
+          IMAGES_API_S3_BUCKET
+          IMAGES_API_S3_USE_PATH_STYLE
+          IMAGES_API_AUTHENTICATION_TYPE
+          IMAGES_API_LOG_LEVEL
+          IMAGES_API_MAX_WORKERS
+          IMAGES_API_MAX_QUEUE_DEPTH
+          IMAGES_API_PROCESSING_TIMEOUT
+        )
+
+        for var_name in "${REQUIRED_VARS[@]}"; do
+          if [ -z "${!var_name:-}" ]; then
+            echo "Missing GitHub Actions secret/variable: $var_name"
+            exit 1
+          fi
+        done
+
+        # Env injected into the Portainer stack. Every ${VAR} referenced by the
+        # compose file must appear here or substitution silently yields "".
+        # IMAGES_API_HOST (staging/Traefik) and IMAGES_API_HOST_PORT (production)
+        # are environment-specific, so they are appended only when set.
+        STACK_ENV_JSON=$(jq -n \
+          --arg image_tag "$IMAGES_API_IMAGE_TAG" \
+          --arg dockerhub_namespace "$IMAGES_API_DOCKERHUB_NAMESPACE" \
+          --arg api_token "$IMAGES_API_API_TOKEN" \
+          --arg redis_password "$IMAGES_API_REDIS_PASSWORD" \
+          --arg s3_access_key "$IMAGES_API_S3_ACCESS_KEY" \
+          --arg s3_secret_key "$IMAGES_API_S3_SECRET_KEY" \
+          --arg s3_endpoint "$IMAGES_API_S3_ENDPOINT" \
+          --arg s3_region "$IMAGES_API_S3_REGION" \
+          --arg s3_bucket "$IMAGES_API_S3_BUCKET" \
+          --arg s3_use_path_style "$IMAGES_API_S3_USE_PATH_STYLE" \
+          --arg authentication_type "$IMAGES_API_AUTHENTICATION_TYPE" \
+          --arg log_level "$IMAGES_API_LOG_LEVEL" \
+          --arg max_workers "$IMAGES_API_MAX_WORKERS" \
+          --arg max_queue_depth "$IMAGES_API_MAX_QUEUE_DEPTH" \
+          --arg processing_timeout "$IMAGES_API_PROCESSING_TIMEOUT" \
+          --arg traefik_host "${IMAGES_API_HOST:-}" \
+          --arg host_port "${IMAGES_API_HOST_PORT:-}" \
+          '[
+            {"name":"IMAGES_API_IMAGE_TAG","value":$image_tag},
+            {"name":"IMAGES_API_DOCKERHUB_NAMESPACE","value":$dockerhub_namespace},
+            {"name":"IMAGES_API_API_TOKEN","value":$api_token},
+            {"name":"IMAGES_API_REDIS_PASSWORD","value":$redis_password},
+            {"name":"IMAGES_API_S3_ACCESS_KEY","value":$s3_access_key},
+            {"name":"IMAGES_API_S3_SECRET_KEY","value":$s3_secret_key},
+            {"name":"IMAGES_API_S3_ENDPOINT","value":$s3_endpoint},
+            {"name":"IMAGES_API_S3_REGION","value":$s3_region},
+            {"name":"IMAGES_API_S3_BUCKET","value":$s3_bucket},
+            {"name":"IMAGES_API_S3_USE_PATH_STYLE","value":$s3_use_path_style},
+            {"name":"IMAGES_API_AUTHENTICATION_TYPE","value":$authentication_type},
+            {"name":"IMAGES_API_LOG_LEVEL","value":$log_level},
+            {"name":"IMAGES_API_MAX_WORKERS","value":$max_workers},
+            {"name":"IMAGES_API_MAX_QUEUE_DEPTH","value":$max_queue_depth},
+            {"name":"IMAGES_API_PROCESSING_TIMEOUT","value":$processing_timeout}
+          ]
+          + (if $traefik_host != "" then [{"name":"IMAGES_API_HOST","value":$traefik_host}] else [] end)
+          + (if $host_port    != "" then [{"name":"IMAGES_API_HOST_PORT","value":$host_port}] else [] end)')
+
+        # Find stack ID by name
+        STACK_ID=$(curl "${CURL_OPTS[@]}" -f \
+          -H "X-API-Key: $PORTAINER_TOKEN" \
+          "$PORTAINER_URL/api/stacks" \
+          | jq -r --arg name "$PORTAINER_STACK_NAME" '.[] | select(.Name==$name) | .Id')
+
+        if [ -z "$STACK_ID" ] || [ "$STACK_ID" = "null" ]; then
+          echo "Stack '$PORTAINER_STACK_NAME' not found."
+          echo "First deployment must be done manually in Portainer using $COMPOSE_FILE_PATH."
+          echo "After manual bootstrap, rerun this workflow to perform updates."
+          exit 1
+        fi
+
+        # Read compose file and escape for JSON
+        COMPOSE_CONTENT=$(jq -Rs . < "$COMPOSE_FILE_PATH")
+
+        UPDATE_PAYLOAD=$(jq -n \
+          --argjson stackFileContent "$COMPOSE_CONTENT" \
+          --argjson env "$STACK_ENV_JSON" \
+          '{
+            stackFileContent: $stackFileContent,
+            env: $env,
+            pullImage: true,
+            prune: false
+          }')
+
+        UPDATE_RESPONSE_FILE=$(mktemp)
+        HTTP_STATUS=$(curl "${CURL_OPTS[@]}" -o "$UPDATE_RESPONSE_FILE" -w "%{http_code}" -X PUT \
+          "${API_HEADERS[@]}" \
+          "$PORTAINER_URL/api/stacks/$STACK_ID?endpointId=$PORTAINER_ENDPOINT_ID" \
+          -d "$UPDATE_PAYLOAD")
+
+        if [ "$HTTP_STATUS" -ne 200 ]; then
+          echo "Portainer stack update failed with HTTP $HTTP_STATUS"
+          echo "Response body:"
+          cat "$UPDATE_RESPONSE_FILE"
+          exit 1
+        fi
+
+        echo "Deployed $IMAGES_API_DOCKERHUB_NAMESPACE/images-api:$IMAGES_API_IMAGE_TAG"
+        echo "Stack '$PORTAINER_STACK_NAME' (id $STACK_ID) updated from $COMPOSE_FILE_PATH"
