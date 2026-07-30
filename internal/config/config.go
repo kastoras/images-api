@@ -193,7 +193,8 @@ func (c *Config) authenticationConfig() error {
 		if err != nil {
 			return err
 		}
+		return nil
 	}
 
-	return fmt.Errorf("no supported authentication type selected: %w", err)
+	return fmt.Errorf("no supported authentication type selected: %q", c.AuthenticationType)
 }
