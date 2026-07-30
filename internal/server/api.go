@@ -67,6 +67,26 @@ func NewAPIServer(cfg *config.Config) *APIServer {
 		}
 	}
 
+	// The IdP gets the same bounded wait as Redis and S3 — Swarm gives no
+	// startup ordering, so an issuer that is not up yet on a cold boot is
+	// normal. It does NOT get their fallback, though: Redis and S3 degrade to
+	// a warning and the service runs with those features off, but an
+	// authenticator with no keys rejects 100% of traffic while still answering
+	// /health with 200. That is indistinguishable from healthy to any external
+	// monitor, so it is fatal instead — the task exits, Swarm restarts it, and
+	// update_config.failure_action rolls the deploy back.
+	if cfg.AuthenticationType == "zitadel" {
+		ping := func(ctx context.Context) error {
+			return authentication.PingJWKS(ctx, cfg.ZitadelIssuer)
+		}
+		if err := s.waitForDependency("zitadel", depDeadline, ping); err != nil {
+			s.Log.Fatal().Err(err).
+				Str("jwks_url", authentication.JWKSURL(cfg.ZitadelIssuer)).
+				Msg("zitadel JWKS unreachable — refusing to start with an empty key set")
+		}
+		s.Log.Info().Str("issuer", cfg.ZitadelIssuer).Msg("zitadel JWKS reachable")
+	}
+
 	auth, err := authentication.NewAuthenticator(context.Background(), cfg, s.Log)
 	if err != nil {
 		s.Log.Fatal().Err(err).Msg("authentication init failed")

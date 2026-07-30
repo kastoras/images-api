@@ -2,10 +2,13 @@ package authentication
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/MicahParks/keyfunc/v3"
 	"github.com/golang-jwt/jwt/v5"
@@ -20,11 +23,66 @@ type ZitadelAuthenticator struct {
 	kf       keyfunc.Keyfunc
 }
 
+// JWKSURL returns the key-set endpoint for an issuer.
+func JWKSURL(issuer string) string {
+	return strings.TrimRight(issuer, "/") + "/oauth/v2/keys"
+}
+
+// PingJWKS reports whether the issuer is serving a usable key set right now.
+//
+// This exists because NewZitadelAuthenticator cannot fail on an unreachable
+// issuer: the underlying jwkset client is built with NoErrorReturnFirstHTTPReq,
+// so the first fetch failing is swallowed and the constructor returns an
+// authenticator holding an EMPTY key set. That process starts cleanly, answers
+// /health with 200, and rejects every request with "key not found" until a
+// background refresh eventually succeeds — up to an hour later. Checking the
+// endpoint separately is the only way to turn that into a visible failure.
+func PingJWKS(ctx context.Context, issuer string) error {
+	url := JWKSURL(issuer)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("build JWKS request for %s: %w", url, err)
+	}
+
+	resp, err := jwksProbeClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("fetch JWKS from %s: %w", url, err)
+	}
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("JWKS at %s returned HTTP %d", url, resp.StatusCode)
+	}
+
+	// A 200 is not enough — a login page or an error document would also be a
+	// 200. Require at least one key, which is what verification actually needs.
+	var body struct {
+		Keys []json.RawMessage `json:"keys"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, jwksProbeMaxBytes)).Decode(&body); err != nil {
+		return fmt.Errorf("parse JWKS from %s: %w", url, err)
+	}
+	if len(body.Keys) == 0 {
+		return fmt.Errorf("JWKS at %s contains no keys", url)
+	}
+
+	return nil
+}
+
+const jwksProbeMaxBytes = 1 << 20
+
+// Bounded on purpose: the default jwkset client allows a full minute per
+// attempt, which is far too long for a readiness probe that retries.
+var jwksProbeClient = &http.Client{Timeout: 10 * time.Second}
+
 // NewZitadelAuthenticator creates an authenticator that verifies JWTs against
 // the JWKS at <issuer>/oauth/v2/keys. The context controls the background
 // key-refresh goroutine — cancel it on server shutdown.
+//
+// Note this does NOT fail when the issuer is unreachable — see PingJWKS.
 func NewZitadelAuthenticator(ctx context.Context, issuer, audience string) (*ZitadelAuthenticator, error) {
-	jwksURL := strings.TrimRight(issuer, "/") + "/oauth/v2/keys"
+	jwksURL := JWKSURL(issuer)
 	kf, err := keyfunc.NewDefaultCtx(ctx, []string{jwksURL})
 	if err != nil {
 		return nil, fmt.Errorf("init JWKS from %s: %w", jwksURL, err)
