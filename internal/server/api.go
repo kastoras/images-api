@@ -35,9 +35,19 @@ func NewAPIServer(cfg *config.Config) *APIServer {
 
 	s.Log = initLogger(cfg)
 
+	// Redis and S3 are pinged once here and never re-checked, so a dependency
+	// that is not ready yet would stay disabled for the life of the process.
+	// Swarm gives no startup ordering (depends_on is ignored), so that is the
+	// normal case on a cold boot, not an edge case. Both waits share one
+	// deadline to bound total startup time.
+	var depDeadline time.Time
+	if cfg.DependencyWaitTimeout > 0 {
+		depDeadline = time.Now().Add(cfg.DependencyWaitTimeout)
+	}
+
 	if cfg.RedisEnabled {
 		cache := initCache(cfg)
-		if err := cache.Ping(context.Background()); err != nil {
+		if err := s.waitForDependency("redis", depDeadline, cache.Ping); err != nil {
 			s.Log.Warn().Err(err).Msg("redis unavailable — cache disabled")
 		} else {
 			s.Cache = cache
@@ -49,12 +59,32 @@ func NewAPIServer(cfg *config.Config) *APIServer {
 		storage, err := initObjectStorage(context.Background(), cfg)
 		if err != nil {
 			s.Log.Warn().Err(err).Msg("s3 init failed — storage disabled")
-		} else if err := storage.Ping(context.Background()); err != nil {
+		} else if err := s.waitForDependency("s3", depDeadline, storage.Ping); err != nil {
 			s.Log.Warn().Err(err).Msg("s3 unreachable — storage disabled")
 		} else {
 			s.Storage = storage
 			s.Log.Info().Msg("s3 connected")
 		}
+	}
+
+	// The IdP gets the same bounded wait as Redis and S3 — Swarm gives no
+	// startup ordering, so an issuer that is not up yet on a cold boot is
+	// normal. It does NOT get their fallback, though: Redis and S3 degrade to
+	// a warning and the service runs with those features off, but an
+	// authenticator with no keys rejects 100% of traffic while still answering
+	// /health with 200. That is indistinguishable from healthy to any external
+	// monitor, so it is fatal instead — the task exits, Swarm restarts it, and
+	// update_config.failure_action rolls the deploy back.
+	if cfg.AuthenticationType == "zitadel" {
+		ping := func(ctx context.Context) error {
+			return authentication.PingJWKS(ctx, cfg.ZitadelIssuer)
+		}
+		if err := s.waitForDependency("zitadel", depDeadline, ping); err != nil {
+			s.Log.Fatal().Err(err).
+				Str("jwks_url", authentication.JWKSURL(cfg.ZitadelIssuer)).
+				Msg("zitadel JWKS unreachable — refusing to start with an empty key set")
+		}
+		s.Log.Info().Str("issuer", cfg.ZitadelIssuer).Msg("zitadel JWKS reachable")
 	}
 
 	auth, err := authentication.NewAuthenticator(context.Background(), cfg, s.Log)
@@ -69,6 +99,63 @@ func NewAPIServer(cfg *config.Config) *APIServer {
 	}
 
 	return s
+}
+
+const (
+	initialDependencyBackoff = 500 * time.Millisecond
+	maxDependencyBackoff     = 5 * time.Second
+)
+
+// waitForDependency retries ping with exponential backoff until it succeeds or
+// deadline passes, returning the last error on give-up. A zero deadline means
+// a single attempt, preserving the original fail-fast behaviour.
+func (s *APIServer) waitForDependency(name string, deadline time.Time, ping func(context.Context) error) error {
+	ctx := context.Background()
+	if deadline.IsZero() {
+		return ping(ctx)
+	}
+
+	ctx, cancel := context.WithDeadline(ctx, deadline)
+	defer cancel()
+
+	backoff := initialDependencyBackoff
+
+	for attempt := 1; ; attempt++ {
+		err := ping(ctx)
+		if err == nil {
+			if attempt > 1 {
+				s.Log.Info().Str("dependency", name).Int("attempts", attempt).Msg("dependency ready after retry")
+			}
+			return nil
+		}
+
+		// Don't sleep past the deadline just to fail anyway.
+		if time.Now().Add(backoff).After(deadline) {
+			return err
+		}
+
+		s.Log.Debug().
+			Err(err).
+			Str("dependency", name).
+			Int("attempt", attempt).
+			Dur("retry_in", backoff).
+			Msg("dependency not ready — retrying")
+
+		timer := time.NewTimer(backoff)
+		select {
+		case <-ctx.Done():
+			timer.Stop()
+			return err
+		case <-timer.C:
+		}
+
+		if backoff < maxDependencyBackoff {
+			backoff *= 2
+			if backoff > maxDependencyBackoff {
+				backoff = maxDependencyBackoff
+			}
+		}
+	}
 }
 
 func (s *APIServer) Start(router *mux.Router) error {

@@ -34,6 +34,10 @@ type Config struct {
 	MaxQueueDepth  int
 	ProcessTimeout time.Duration
 
+	// How long to keep retrying Redis/S3 at startup before giving up and
+	// running degraded. Set to 0 for a single attempt.
+	DependencyWaitTimeout time.Duration
+
 	ReadTimeout  time.Duration
 	WriteTimeout time.Duration
 	IdleTimeout  time.Duration
@@ -131,6 +135,11 @@ func Load() (*Config, error) {
 		cfg.ProcessTimeout = 10 * time.Second
 	}
 
+	cfg.DependencyWaitTimeout, err = env_parameters.GetDuration("DEPENDENCY_WAIT_TIMEOUT", 60, time.Second)
+	if err != nil {
+		cfg.DependencyWaitTimeout = 60 * time.Second
+	}
+
 	cfg.ReadTimeout, err = env_parameters.GetDuration("READ_TIMEOUT", 15, time.Second)
 	if err != nil {
 		cfg.ReadTimeout = 15 * time.Second
@@ -184,7 +193,8 @@ func (c *Config) authenticationConfig() error {
 		if err != nil {
 			return err
 		}
+		return nil
 	}
 
-	return fmt.Errorf("no supported authentication type selected: %w", err)
+	return fmt.Errorf("no supported authentication type selected: %q", c.AuthenticationType)
 }
