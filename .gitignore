@@ -36,7 +36,8 @@ vendor/
 # Claude Code session data
 .claude/
 
-insomnia_demo.json
+# Insomnia exports — local API-client scratch, not project state
+insomnia*.json
 
 # Zitadel generated machine key (written at first startup)
 infra/zitadel

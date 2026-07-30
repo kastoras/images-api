@@ -62,3 +62,7 @@ Production Dockerfile stages: `deps` → `builder` (CGO disabled, distroless fin
 ## Dependencies
 
 Uses `github.com/kastoras/go-utilities` (internal utilities library) for `env_parameters.GetString` / `env_parameters.GetDuration` — the pattern for reading all env vars.
+
+## Contribution
+
+Do not commit if I don't tell you to, I will do it my self.
