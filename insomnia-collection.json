@@ -1,0 +1,394 @@
+{
+  "_type": "export",
+  "__export_format": 4,
+  "__export_date": "2026-06-17T00:00:00.000Z",
+  "__export_source": "insomnia.desktop.app:v2023.5.8",
+  "resources": [
+    {
+      "_id": "wrk_images_api",
+      "_type": "workspace",
+      "name": "Images API",
+      "description": "API collection for the images-api service"
+    },
+    {
+      "_id": "env_base",
+      "_type": "environment",
+      "parentId": "wrk_images_api",
+      "name": "Base Environment",
+      "data": {
+        "base_url": "http://localhost:8080",
+        "token": "dev-token-12345"
+      }
+    },
+    {
+      "_id": "fld_health",
+      "_type": "request_group",
+      "parentId": "wrk_images_api",
+      "name": "Health"
+    },
+    {
+      "_id": "req_health",
+      "_type": "request",
+      "parentId": "fld_health",
+      "name": "Health Check",
+      "method": "GET",
+      "url": "{{ _.base_url }}/health",
+      "headers": [],
+      "body": {}
+    },
+    {
+      "_id": "fld_resize",
+      "_type": "request_group",
+      "parentId": "wrk_images_api",
+      "name": "Resize"
+    },
+    {
+      "_id": "req_resize_exact",
+      "_type": "request",
+      "parentId": "fld_resize",
+      "name": "Resize - Exact (width + height)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/resize",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "file",
+            "type": "file",
+            "fileName": "",
+            "description": "Image file to resize (JPEG or PNG)"
+          },
+          {
+            "name": "width",
+            "value": "800",
+            "type": "text"
+          },
+          {
+            "name": "height",
+            "value": "600",
+            "type": "text"
+          },
+          {
+            "name": "mode",
+            "value": "exact",
+            "type": "text"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "req_resize_fit",
+      "_type": "request",
+      "parentId": "fld_resize",
+      "name": "Resize - Fit (preserve aspect ratio)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/resize",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "file",
+            "type": "file",
+            "fileName": "",
+            "description": "Image file to resize (JPEG or PNG)"
+          },
+          {
+            "name": "width",
+            "value": "800",
+            "type": "text"
+          },
+          {
+            "name": "height",
+            "value": "600",
+            "type": "text"
+          },
+          {
+            "name": "mode",
+            "value": "fit",
+            "type": "text"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "req_resize_fill",
+      "_type": "request",
+      "parentId": "fld_resize",
+      "name": "Resize - Fill (crop to exact size)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/resize",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "file",
+            "type": "file",
+            "fileName": "",
+            "description": "Image file to resize (JPEG or PNG)"
+          },
+          {
+            "name": "width",
+            "value": "400",
+            "type": "text"
+          },
+          {
+            "name": "height",
+            "value": "400",
+            "type": "text"
+          },
+          {
+            "name": "mode",
+            "value": "fill",
+            "type": "text"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "req_resize_width_only",
+      "_type": "request",
+      "parentId": "fld_resize",
+      "name": "Resize - Width only (exact mode)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/resize",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "file",
+            "type": "file",
+            "fileName": "",
+            "description": "Image file to resize (JPEG or PNG)"
+          },
+          {
+            "name": "width",
+            "value": "1920",
+            "type": "text"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "req_resize_height_only",
+      "_type": "request",
+      "parentId": "fld_resize",
+      "name": "Resize - Height only (exact mode)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/resize",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "file",
+            "type": "file",
+            "fileName": "",
+            "description": "Image file to resize (JPEG or PNG)"
+          },
+          {
+            "name": "height",
+            "value": "1080",
+            "type": "text"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "fld_resize_errors",
+      "_type": "request_group",
+      "parentId": "fld_resize",
+      "name": "Error Cases"
+    },
+    {
+      "_id": "req_resize_no_auth",
+      "_type": "request",
+      "parentId": "fld_resize_errors",
+      "name": "Resize - No Auth (401)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/resize",
+      "headers": [],
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "file",
+            "type": "file",
+            "fileName": ""
+          },
+          {
+            "name": "width",
+            "value": "800",
+            "type": "text"
+          },
+          {
+            "name": "height",
+            "value": "600",
+            "type": "text"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "req_resize_missing_dims",
+      "_type": "request",
+      "parentId": "fld_resize_errors",
+      "name": "Resize - Missing dimensions (400)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/resize",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "file",
+            "type": "file",
+            "fileName": ""
+          }
+        ]
+      }
+    },
+    {
+      "_id": "req_resize_invalid_mode",
+      "_type": "request",
+      "parentId": "fld_resize_errors",
+      "name": "Resize - Invalid mode (400)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/resize",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "file",
+            "type": "file",
+            "fileName": ""
+          },
+          {
+            "name": "width",
+            "value": "800",
+            "type": "text"
+          },
+          {
+            "name": "height",
+            "value": "600",
+            "type": "text"
+          },
+          {
+            "name": "mode",
+            "value": "stretch",
+            "type": "text"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "req_resize_fit_one_dim",
+      "_type": "request",
+      "parentId": "fld_resize_errors",
+      "name": "Resize - Fit/Fill with one dimension (400)",
+      "method": "POST",
+      "url": "{{ _.base_url }}/api/v1/resize",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "body": {
+        "mimeType": "multipart/form-data",
+        "params": [
+          {
+            "name": "file",
+            "type": "file",
+            "fileName": ""
+          },
+          {
+            "name": "width",
+            "value": "800",
+            "type": "text"
+          },
+          {
+            "name": "mode",
+            "value": "fit",
+            "type": "text"
+          }
+        ]
+      }
+    },
+    {
+      "_id": "fld_jobs",
+      "_type": "request_group",
+      "parentId": "wrk_images_api",
+      "name": "Jobs"
+    },
+    {
+      "_id": "req_get_job",
+      "_type": "request",
+      "parentId": "fld_jobs",
+      "name": "Get Job Status",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/jobs/JOB_ID_HERE",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "body": {}
+    },
+    {
+      "_id": "req_get_job_not_found",
+      "_type": "request",
+      "parentId": "fld_jobs",
+      "name": "Get Job - Not Found (404)",
+      "method": "GET",
+      "url": "{{ _.base_url }}/api/v1/jobs/nonexistent-job-id",
+      "headers": [
+        {
+          "name": "Authorization",
+          "value": "Bearer {{ _.token }}"
+        }
+      ],
+      "body": {}
+    }
+  ]
+}
