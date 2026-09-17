@@ -21,6 +21,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/joho/godotenv"
 	"github.com/kastoras/images-api/internal/config"
+	"github.com/kastoras/images-api/internal/domains/assets"
 	"github.com/kastoras/images-api/internal/domains/health"
 	"github.com/kastoras/images-api/internal/domains/jobs"
 	"github.com/kastoras/images-api/internal/domains/resize"
@@ -32,8 +33,9 @@ func setupRouter(api *server.APIServer) *mux.Router {
 	router := mux.NewRouter()
 	router.Use(middleware.Logging(api.Log))
 
-	// /health is unauthenticated
+	// /health and /a/.../render are unauthenticated
 	health.Register(router, api)
+	assets.RegisterPublic(router, api)
 
 	// All /api/v1 routes require auth
 	apiRouter := router.PathPrefix("/api/v1").Subrouter()
@@ -41,6 +43,7 @@ func setupRouter(api *server.APIServer) *mux.Router {
 
 	resize.Register(apiRouter, api)
 	jobs.Register(apiRouter, api)
+	assets.Register(apiRouter, api)
 
 	return router
 }

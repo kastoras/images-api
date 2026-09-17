@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/kastoras/go-utilities/env_parameters"
@@ -16,6 +17,7 @@ type Config struct {
 
 	AuthenticationType string
 	APIToken           string
+	APITokens          map[string]string // token -> consumer name, resolved from API_TOKENS (or the API_TOKEN fallback)
 	ZitadelIssuer      string
 	ZitadelClientID    string
 	ZitadelAudience    string
@@ -33,6 +35,12 @@ type Config struct {
 	MaxWorkers     int
 	MaxQueueDepth  int
 	ProcessTimeout time.Duration
+
+	// images domain (persistent master/derivative storage) settings.
+	MaxUploadSizeBytes  int
+	MaxSourceMegapixels int
+	MasterMaxDimension  int
+	MasterJPEGQuality   int
 
 	// How long to keep retrying Redis/S3 at startup before giving up and
 	// running degraded. Set to 0 for a single attempt.
@@ -160,6 +168,26 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
+	cfg.MaxUploadSizeBytes, err = env_parameters.GetInt("MAX_UPLOAD_SIZE_BYTES", 25<<20)
+	if err != nil {
+		cfg.MaxUploadSizeBytes = 25 << 20
+	}
+
+	cfg.MaxSourceMegapixels, err = env_parameters.GetInt("MAX_SOURCE_MEGAPIXELS", 40)
+	if err != nil {
+		cfg.MaxSourceMegapixels = 40
+	}
+
+	cfg.MasterMaxDimension, err = env_parameters.GetInt("MASTER_MAX_DIMENSION", 2560)
+	if err != nil {
+		cfg.MasterMaxDimension = 2560
+	}
+
+	cfg.MasterJPEGQuality, err = env_parameters.GetInt("MASTER_JPEG_QUALITY", 85)
+	if err != nil {
+		cfg.MasterJPEGQuality = 85
+	}
+
 	return cfg, nil
 }
 
@@ -174,6 +202,16 @@ func (c *Config) authenticationConfig() error {
 	switch c.AuthenticationType {
 	case "bearer":
 		c.APIToken, err = env_parameters.GetString("API_TOKEN", "")
+		if err != nil {
+			return err
+		}
+
+		rawTokens, err := env_parameters.GetString("API_TOKENS", "")
+		if err != nil {
+			rawTokens = ""
+		}
+
+		c.APITokens, err = parseAPITokens(rawTokens, c.APIToken)
 		if err != nil {
 			return err
 		}
@@ -197,4 +235,35 @@ func (c *Config) authenticationConfig() error {
 	}
 
 	return fmt.Errorf("no supported authentication type selected: %q", c.AuthenticationType)
+}
+
+// parseAPITokens parses API_TOKENS ("consumer:token,consumer:token") into a
+// token->consumer map. Each consumer name namespaces that caller's data from
+// every other consumer's — see the assets domain. If API_TOKENS is empty,
+// legacyToken (API_TOKEN) falls back to a single consumer named "default",
+// so existing single-token .env files keep working unchanged.
+func parseAPITokens(raw, legacyToken string) (map[string]string, error) {
+	tokens := make(map[string]string)
+
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		if legacyToken != "" {
+			tokens[legacyToken] = "default"
+		}
+		return tokens, nil
+	}
+
+	for _, pair := range strings.Split(raw, ",") {
+		pair = strings.TrimSpace(pair)
+		if pair == "" {
+			continue
+		}
+		parts := strings.SplitN(pair, ":", 2)
+		if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+			return nil, fmt.Errorf("invalid API_TOKENS entry %q: expected consumer:token", pair)
+		}
+		tokens[parts[1]] = parts[0]
+	}
+
+	return tokens, nil
 }

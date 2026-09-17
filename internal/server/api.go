@@ -24,13 +24,23 @@ type APIServer struct {
 	Semaphore     chan struct{}
 	MaxQueueDepth int
 	processors    map[string]ProcessorFunc
+
+	// images domain settings, copied from cfg so domains don't need cfg itself.
+	MaxUploadSizeBytes  int
+	MaxSourceMegapixels int
+	MasterMaxDimension  int
+	MasterJPEGQuality   int
 }
 
 func NewAPIServer(cfg *config.Config) *APIServer {
 	s := &APIServer{
-		cfg:           cfg,
-		MaxQueueDepth: cfg.MaxQueueDepth,
-		processors:    make(map[string]ProcessorFunc),
+		cfg:                 cfg,
+		MaxQueueDepth:       cfg.MaxQueueDepth,
+		processors:          make(map[string]ProcessorFunc),
+		MaxUploadSizeBytes:  cfg.MaxUploadSizeBytes,
+		MaxSourceMegapixels: cfg.MaxSourceMegapixels,
+		MasterMaxDimension:  cfg.MasterMaxDimension,
+		MasterJPEGQuality:   cfg.MasterJPEGQuality,
 	}
 
 	s.Log = initLogger(cfg)

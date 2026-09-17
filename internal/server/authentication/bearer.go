@@ -8,22 +8,30 @@ import (
 // errInvalidToken is returned when the bearer token is missing or wrong.
 var errInvalidToken = errors.New("invalid bearer token")
 
-// BearerAuthenticator validates a static bearer token.
-// Use this for local development (AUTHENTICATION_TYPE=bearer). The token is treated
-// as a superuser: the returned principal holds the wildcard role and therefore
-// passes every authorization check.
+// BearerAuthenticator validates a static bearer token against a map of
+// token -> consumer name. Each token is treated as a superuser within its
+// own consumer namespace: the returned principal holds the wildcard role and
+// therefore passes every authorization check, but its Subject (the consumer
+// name) is what namespaces that caller's data from every other consumer's —
+// see the `assets` domain, which never trusts a client-supplied consumer id.
 type BearerAuthenticator struct {
-	token string
+	tokens map[string]string // token -> consumer name
 }
 
-func NewBearerAuthenticator(token string) *BearerAuthenticator {
-	return &BearerAuthenticator{token: token}
+// NewBearerAuthenticator takes the fully-resolved token->consumer map
+// (config.go already applies the legacy single-API_TOKEN fallback).
+func NewBearerAuthenticator(tokens map[string]string) *BearerAuthenticator {
+	return &BearerAuthenticator{tokens: tokens}
 }
 
 func (a *BearerAuthenticator) Authenticate(r *http.Request) (*Principal, error) {
 	raw := extractBearer(r)
-	if raw == "" || raw != a.token {
+	if raw == "" {
 		return nil, errInvalidToken
 	}
-	return &Principal{Subject: "local-dev", Roles: []string{wildcardRole}}, nil
+	consumer, ok := a.tokens[raw]
+	if !ok {
+		return nil, errInvalidToken
+	}
+	return &Principal{Subject: consumer, Roles: []string{wildcardRole}}, nil
 }
