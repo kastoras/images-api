@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"os"
 	"os/signal"
@@ -11,6 +12,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/kastoras/images-api/internal/config"
 	"github.com/kastoras/images-api/internal/server/authentication"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/collectors"
 	"github.com/rs/zerolog"
 )
 
@@ -23,6 +26,7 @@ type APIServer struct {
 	Workers       *WorkerPool
 	Semaphore     chan struct{}
 	MaxQueueDepth int
+	Metrics       *prometheus.Registry
 	processors    map[string]ProcessorFunc
 
 	// images domain settings, copied from cfg so domains don't need cfg itself.
@@ -108,7 +112,52 @@ func NewAPIServer(cfg *config.Config) *APIServer {
 		s.Workers = newWorkerPool(cfg.MaxWorkers)
 	}
 
+	s.initMetrics()
+
 	return s
+}
+
+// initMetrics builds a dedicated registry (not prometheus.DefaultRegisterer)
+// so /metrics doesn't depend on global state, consistent with the rest of
+// this struct threading its own Cache/Storage/Auth rather than using
+// package-level singletons. Called after Semaphore/Cache are set above —
+// the GaugeFuncs close over s, so they read whatever those fields hold at
+// scrape time, not at registration time.
+func (s *APIServer) initMetrics() {
+	s.Metrics = prometheus.NewRegistry()
+	s.Metrics.MustRegister(collectors.NewGoCollector())
+	s.Metrics.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
+
+	s.Metrics.MustRegister(prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "images_api_inflight_requests",
+			Help: "Requests currently holding a semaphore slot (synchronous resize work in flight).",
+		},
+		func() float64 { return float64(len(s.Semaphore)) },
+	))
+	s.Metrics.MustRegister(prometheus.NewGaugeFunc(
+		prometheus.GaugeOpts{
+			Name: "images_api_semaphore_capacity",
+			Help: "Configured MAX_WORKERS — the semaphore's total capacity.",
+		},
+		func() float64 { return float64(cap(s.Semaphore)) },
+	))
+
+	if s.Cache != nil {
+		s.Metrics.MustRegister(prometheus.NewGaugeFunc(
+			prometheus.GaugeOpts{
+				Name: "images_api_queue_depth",
+				Help: "Jobs waiting in the async processing queue (Redis-backed).",
+			},
+			func() float64 {
+				depth, err := s.Cache.QueueDepth(context.Background())
+				if err != nil {
+					return math.NaN()
+				}
+				return float64(depth)
+			},
+		))
+	}
 }
 
 const (

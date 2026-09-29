@@ -35,6 +35,10 @@ services:
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=minioadmin
+      # Exposes MinIO's /minio/v2/metrics/cluster endpoint without a bearer
+      # token so Prometheus can scrape it. Dev default only: in production
+      # restrict network access to it, or use a token-gated auth type.
+      - MINIO_PROMETHEUS_AUTH_TYPE=public
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -46,8 +50,78 @@ services:
     networks:
       - images-api-network
 
+  # --- Observability (opt-in) ------------------------------------------------
+  # Not started by default. Enable with:
+  #   docker compose --profile observability up
+  # Exporters bind to 127.0.0.1 unless METRICS_BIND is set; they have no
+  # authentication, so only widen the bind on a private network. Point your
+  # Prometheus at these ports and your Loki at LOKI_URL.
+  # node-exporter, cadvisor and promtail mount host paths (/, /sys,
+  # docker.sock) read-only — review that before running them on shared hosts.
+  node-exporter:
+    image: prom/node-exporter:v1.9.1
+    profiles: ["observability"]
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)
+    ports:
+      - "${METRICS_BIND:-127.0.0.1}:9100:9100"
+    restart: unless-stopped
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    profiles: ["observability"]
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    ports:
+      - "${METRICS_BIND:-127.0.0.1}:8081:8080"
+    restart: unless-stopped
+
+  redis-exporter:
+    image: oliver006/redis_exporter:v1.67.0
+    profiles: ["observability"]
+    command:
+      - --redis.addr=redis:6379
+    ports:
+      - "${METRICS_BIND:-127.0.0.1}:9121:9121"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - images-api-network
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:3.5.1
+    profiles: ["observability"]
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail-positions:/promtail-positions
+      - ./infra/promtail-config.yml:/etc/promtail/config.yml:ro
+    environment:
+      # Required when the observability profile is enabled, e.g. http://loki:3100
+      LOKI_URL: "${LOKI_URL:-}"
+      ENVIRONMENT: "${ENVIRONMENT:-dev}"
+    command:
+      - --config.file=/etc/promtail/config.yml
+      - --config.expand-env=true
+    restart: unless-stopped
+
 networks:
   images-api-network:
     driver: bridge
   wedbuddy-shared:
     external: true
+
+volumes:
+  promtail-positions:

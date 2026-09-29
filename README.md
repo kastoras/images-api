@@ -79,8 +79,36 @@ Copy `.env.example` to `.env` and fill in the values.
 | `WRITE_TIMEOUT` | `15` | HTTP write timeout in seconds |
 | `IDLE_TIMEOUT` | `60` | HTTP idle timeout in seconds |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
+| `LOKI_URL` | — | Loki push target for promtail (observability profile only) |
+| `ENVIRONMENT` | `dev` | `environment` label attached to shipped logs (observability profile only) |
+| `METRICS_BIND` | `127.0.0.1` | Interface the exporter ports bind to (observability profile only) |
 
 For local dev set `AUTHENTICATION_TYPE=bearer` and `API_TOKEN=dev-token-12345`.
+
+## Observability
+
+### Metrics
+
+`GET /metrics` serves Prometheus metrics (no authentication, like `/health`). **Do not expose it publicly** — restrict it to your scraper via a private network or block the path at your reverse proxy.
+
+| Metric | Description |
+|---|---|
+| `http_requests_total{method,route,status}` | Requests by route template (not raw path) |
+| `http_request_duration_seconds{method,route}` | Request duration histogram |
+| `images_api_inflight_requests` | Semaphore slots currently in use |
+| `images_api_semaphore_capacity` | Configured `MAX_WORKERS` |
+| `images_api_queue_depth` | Jobs pending in the Redis queue (only when Redis is enabled; `NaN` if Redis can't be queried) |
+| `go_*`, `process_*` | Standard Go runtime / process collectors |
+
+### Optional exporters and log shipping
+
+The compose file includes node-exporter, cAdvisor, redis-exporter and promtail behind the `observability` profile. They are not started by default:
+
+```bash
+docker compose --profile observability up
+```
+
+Set `LOKI_URL` (and optionally `ENVIRONMENT`) in `.env` first. Exporter ports (`9100`, `8081`, `9121`) bind to `127.0.0.1` by default and are unauthenticated — set `METRICS_BIND` only if the host is on a private network. MinIO's metrics endpoint is enabled without a token for local dev; restrict access to it in production.
 
 ## Zitadel setup
 
