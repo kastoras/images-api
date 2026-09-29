@@ -30,3 +30,10 @@ func Resize(src image.Image, opts ResizeOptions) image.Image {
 		return imaging.Resize(src, opts.Width, opts.Height, imaging.Lanczos)
 	}
 }
+
+// NormalizeMaster bounds img to maxDimension on its longer edge, preserving
+// aspect ratio. imaging.Fit already returns the image unchanged when it's
+// already within bounds, so this never upscales a smaller original.
+func NormalizeMaster(img image.Image, maxDimension int) image.Image {
+	return imaging.Fit(img, maxDimension, maxDimension, imaging.Lanczos)
+}

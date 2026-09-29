@@ -23,6 +23,6 @@ func NewAuthenticator(ctx context.Context, cfg *config.Config, log zerolog.Logge
 		return auth, nil
 	default:
 		log.Info().Msg("bearer token auth initialized")
-		return NewBearerAuthenticator(cfg.APIToken), nil
+		return NewBearerAuthenticator(cfg.APITokens), nil
 	}
 }

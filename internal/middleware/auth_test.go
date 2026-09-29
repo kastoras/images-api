@@ -16,7 +16,7 @@ const testToken = "test-secret-token"
 // (Zitadel disabled) with the given API token.
 func makeAPIServer(token string) *server.APIServer {
 	return &server.APIServer{
-		Auth:      authentication.NewBearerAuthenticator(token),
+		Auth:      authentication.NewBearerAuthenticator(map[string]string{token: "test-consumer"}),
 		Semaphore: make(chan struct{}, 1),
 	}
 }

@@ -55,7 +55,12 @@ Copy `.env.example` to `.env` and fill in the values.
 | `REDIS_ENABLED` | `false` | Enable Redis queue and job metadata |
 | `S3_ENABLED` | `false` | Enable MinIO/S3 object storage |
 | `AUTHENTICATION_TYPE` | `bearer` | Auth implementation: `bearer` (static token) or `zitadel` (OIDC JWT) |
-| `API_TOKEN` | — | Static bearer token when `AUTHENTICATION_TYPE=bearer` |
+| `API_TOKEN` | — | Static bearer token when `AUTHENTICATION_TYPE=bearer`. Fallback: maps to a single consumer named `default` when `API_TOKENS` is unset. |
+| `API_TOKENS` | — | Multiple named bearer tokens, one per consumer: `consumer:token,consumer:token`. Takes precedence over `API_TOKEN` when set. See "Assets — consumers and tenants" below. |
+| `MAX_UPLOAD_SIZE_BYTES` | `26214400` (25MB) | Max upload size for `POST /api/v1/assets` |
+| `MAX_SOURCE_MEGAPIXELS` | `40` | Reject uploads/render requests above this pixel count |
+| `MASTER_MAX_DIMENSION` | `2560` | Long-edge cap a stored master is normalized to (never upscaled) |
+| `MASTER_JPEG_QUALITY` | `85` | JPEG quality used when encoding masters/derivatives |
 | `ZITADEL_ISSUER` | — | Zitadel issuer URL |
 | `ZITADEL_CLIENT_ID` | — | Zitadel client ID |
 | `ZITADEL_AUDIENCE` | `image-api` | Expected JWT audience |
@@ -231,6 +236,79 @@ curl http://localhost:8080/api/v1/jobs/e3b0c442-... \
 |---|---|
 | `404` | Job ID not found or expired |
 | `503` | Redis unavailable |
+
+---
+
+### Assets — persistent, tenant-scoped image storage
+
+Unlike `/resize` (stateless, throw-away), the `assets` domain stores a normalized **master** per uploaded image, content-addressed by its own hash, and generates+caches **derivatives** (specific sizes) on demand. Re-uploading identical content, or requesting a size that's already been rendered, does no extra work.
+
+#### Consumers and tenants
+
+images-api is a shared, multi-consumer service: several independent applications can use the same deployment and credentials pool. To keep them from ever touching each other's data, storage is namespaced two ways:
+
+- **Consumer** — *which calling application* (e.g. one product vs. another). This is **never** a request parameter: it's resolved from your authenticated identity (the Zitadel JWT's `sub`, or which named bearer token you presented — see `API_TOKENS` above). A caller can only ever read/write inside its own consumer namespace, no matter what it sends in a request.
+- **Tenant** — a sub-identifier *within* your own consumer namespace (e.g. one customer site of yours vs. another). This *is* a plain request parameter (`tenant`) — it's yours to define, and it only ever reaches data inside your own consumer's namespace.
+
+Both are validated against `^[A-Za-z0-9_-]{1,128}$`.
+
+#### Upload a master
+
+```
+POST /api/v1/assets
+Content-Type: multipart/form-data
+Authorization: Bearer <token>
+```
+
+| Field | Type | Required | Description |
+|---|---|---|---|
+| `file` | file | yes | `image/jpeg`, `image/png`, or `image/webp` |
+| `tenant` | string | yes | Your own sub-identifier for this image |
+
+The image is normalized (long edge capped to `MASTER_MAX_DIMENSION`, never upscaled) and re-encoded (JPEG, or PNG if it has real transparency) before storage — the original bytes you uploaded are never persisted.
+
+**Response `201`:**
+```json
+{"data": {"id": "<sha256>", "consumer": "your-consumer", "tenant": "42", "width": 2560, "height": 1706, "format": "jpeg", "bytes": 69075}}
+```
+
+#### Render a derivative
+
+```
+GET /a/{consumer}/{tenant}/{hash}/render?width=&height=&mode=&format=
+```
+
+**No authentication** — this is a public, CDN-cacheable URL (`Cache-Control: public, max-age=31536000, immutable`), the same trust model as a plain static file URL: knowledge of the exact hash is what gates access.
+
+| Param | Required | Description |
+|---|---|---|
+| `width` / `height` | one of | Target size in pixels |
+| `mode` | no | `exact`, `fit` (default here), or `fill` — same semantics as `/resize` |
+| `format` | no | `jpeg` or `png`; omit to keep the master's own format |
+
+First request for a given size generates and caches it; every request after is served straight from cache.
+
+#### Delete an asset
+
+```
+DELETE /api/v1/assets/{tenant}/{hash}
+Authorization: Bearer <token>
+```
+
+Deletes the master and every cached derivative under it. `consumer` is resolved from your credential, not the path. Idempotent — `204` even if it's already gone.
+
+#### List a tenant's assets
+
+```
+GET /api/v1/assets?tenant=<id>
+Authorization: Bearer <token>
+```
+
+Returns every master id, size, and last-modified time for your consumer+tenant. Intended for reconciliation/cleanup jobs and "show me what's stored" tooling.
+
+#### Future: bring your own storage
+
+Today all consumers share one images-api-operated bucket, isolated by the consumer-derived key prefix above. A consumer needing physically separate storage (data residency, full custody, etc.) is a designed-for future extension: both AWS S3 and MinIO natively support `AssumeRoleWithWebIdentity` — a consumer's own Zitadel-issued token can be exchanged for temporary, policy-scoped credentials against their own storage account, with no long-lived secret ever held by images-api. Not implemented yet.
 
 ---
 
