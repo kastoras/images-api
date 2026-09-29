@@ -15,9 +15,9 @@ func (svc *Service) Delete(ctx context.Context, consumer, tenant, hash string) e
 		return err
 	}
 	if err == nil {
-		if delErr := svc.server.Storage.Delete(ctx, key); delErr != nil {
+		if delErr := svc.storage.Delete(ctx, key); delErr != nil {
 			return delErr
 		}
 	}
-	return svc.server.Storage.DeletePrefix(ctx, derivativePrefix(consumer, tenant, hash))
+	return svc.storage.DeletePrefix(ctx, derivativePrefix(consumer, tenant, hash))
 }

@@ -74,7 +74,7 @@ func (svc *Service) normalizeUpload(file io.Reader) (*normalizedMaster, error) {
 func (svc *Service) storeMaster(ctx context.Context, consumer, tenant string, m *normalizedMaster) error {
 	key := masterKey(consumer, tenant, m.hash, extForFormat(m.format))
 
-	_, _, err := svc.server.Storage.HeadObject(ctx, key)
+	_, _, err := svc.storage.HeadObject(ctx, key)
 	if err == nil {
 		return nil
 	}
@@ -89,7 +89,7 @@ func (svc *Service) storeMaster(ctx context.Context, consumer, tenant string, m 
 		"height":   strconv.Itoa(m.height),
 		"format":   m.format,
 	}
-	if err := svc.server.Storage.UploadWithMetadata(ctx, key, bytes.NewReader(m.data), int64(len(m.data)), metadata); err != nil {
+	if err := svc.storage.UploadWithMetadata(ctx, key, bytes.NewReader(m.data), int64(len(m.data)), metadata); err != nil {
 		return fmt.Errorf("upload master: %w", err)
 	}
 	return nil

@@ -8,7 +8,7 @@ import (
 // List returns every master stored for a consumer's tenant. Used for the
 // reconciliation sweep and future "show a tenant's assets" use cases.
 func (svc *Service) List(ctx context.Context, consumer, tenant string) ([]ListedAsset, error) {
-	objects, err := svc.server.Storage.ListKeys(ctx, masterPrefix(consumer, tenant))
+	objects, err := svc.storage.ListKeys(ctx, masterPrefix(consumer, tenant))
 	if err != nil {
 		return nil, err
 	}
