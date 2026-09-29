@@ -35,6 +35,11 @@ services:
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=minioadmin
+      # Enables MinIO's built-in /minio/v2/metrics/cluster endpoint with no
+      # extra auth token — relies on network-level restriction (Tailscale)
+      # instead. Switch to a token-gated auth type here if defense-in-depth
+      # is wanted; see monitoring/README.md.
+      - MINIO_PROMETHEUS_AUTH_TYPE=public
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -46,8 +51,71 @@ services:
     networks:
       - images-api-network
 
+  # --- Observability ---------------------------------------------------------
+  # Same compose file used for local dev today; if/when this is deployed to
+  # Swarm in production (the app's own retry logic in internal/server/api.go
+  # already assumes Swarm's lack of startup ordering), apply the same
+  # `deploy: mode: global` + `ports: ... mode: host` pattern used in
+  # dolibarr-multi-tenant's docker-compose.prod.yml once that production
+  # compose/stack file exists — see monitoring's open items.
+  node-exporter:
+    image: prom/node-exporter:latest
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/rootfs
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)
+    ports:
+      - "9100:9100"
+    restart: unless-stopped
+
+  cadvisor:
+    image: gcr.io/cadvisor/cadvisor:latest
+    volumes:
+      - /:/rootfs:ro
+      - /var/run:/var/run:ro
+      - /sys:/sys:ro
+      - /var/lib/docker:/var/lib/docker:ro
+      - /dev/disk:/dev/disk:ro
+    ports:
+      - "8081:8080"
+    restart: unless-stopped
+
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    command:
+      - --redis.addr=redis:6379
+    ports:
+      - "9121:9121"
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - images-api-network
+    restart: unless-stopped
+
+  promtail:
+    image: grafana/promtail:latest
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - promtail-positions:/promtail-positions
+      - ./infra/promtail-config.yml:/etc/promtail/config.yml:ro
+    environment:
+      LOKI_URL: "${LOKI_URL:?set to the observability host's Tailscale address, e.g. http://100.x.y.z:3100}"
+    command:
+      - --config.file=/etc/promtail/config.yml
+      - --config.expand-env=true
+    restart: unless-stopped
+
 networks:
   images-api-network:
     driver: bridge
   wedbuddy-shared:
     external: true
+
+volumes:
+  promtail-positions:

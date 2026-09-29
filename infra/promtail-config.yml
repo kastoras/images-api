@@ -1,0 +1,30 @@
+# Ships images-api/redis/minio container stdout to Loki over the Tailscale
+# mesh — no auth token needed, access is restricted by network placement
+# (see ../../monitoring/README.md). ${LOKI_URL} expanded via
+# --config.expand-env=true.
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /promtail-positions/positions.yaml
+
+clients:
+  - url: ${LOKI_URL}/loki/api/v1/push
+
+scrape_configs:
+  # `job` is a static label here (not derived from job_name, which promtail
+  # does NOT auto-promote to a label) so Grafana's images-api.json dashboard
+  # can select this stream with {job="images-api-containers"}; `container`
+  # differentiates images-api/redis/minio within it.
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 30s
+    relabel_configs:
+      - source_labels: ["__meta_docker_container_name"]
+        target_label: container
+      - target_label: job
+        replacement: images-api-containers
+      - target_label: environment
+        replacement: production
