@@ -4,13 +4,14 @@ import (
 	"net/http"
 
 	"github.com/gorilla/mux"
+	assets_services "github.com/kastoras/images-api/internal/domains/assets/services"
 	"github.com/kastoras/images-api/internal/middleware"
 	"github.com/kastoras/images-api/internal/server"
 )
 
 // Register wires the authenticated /api/v1/assets routes.
 func Register(router *mux.Router, s *server.APIServer) {
-	svc := NewService(s)
+	svc := assets_services.NewService(s)
 	h := NewHandler(s, svc)
 
 	router.Handle("/assets",
@@ -30,7 +31,7 @@ func Register(router *mux.Router, s *server.APIServer) {
 // (the same tier as /health) — assets are served directly by images-api,
 // not proxied through a consumer's own backend.
 func RegisterPublic(router *mux.Router, s *server.APIServer) {
-	svc := NewService(s)
+	svc := assets_services.NewService(s)
 	h := NewHandler(s, svc)
 
 	router.HandleFunc("/a/{consumer}/{tenant}/{hash}/render", h.Render).Methods("GET")
