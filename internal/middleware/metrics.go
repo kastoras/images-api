@@ -1,6 +1,7 @@
 package middleware
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 	"time"
@@ -29,7 +30,8 @@ func Metrics(reg *prometheus.Registry) mux.MiddlewareFunc {
 		},
 		[]string{"method", "route"},
 	)
-	reg.MustRegister(requestsTotal, requestDuration)
+	requestsTotal = registerOrReuse(reg, requestsTotal)
+	requestDuration = registerOrReuse(reg, requestDuration)
 
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -48,4 +50,18 @@ func Metrics(reg *prometheus.Registry) mux.MiddlewareFunc {
 			requestDuration.WithLabelValues(r.Method, route).Observe(time.Since(start).Seconds())
 		})
 	}
+}
+
+// registerOrReuse registers c on reg, or returns the collector already
+// registered under the same name, so building the middleware twice against
+// one registry (e.g. in tests) doesn't panic.
+func registerOrReuse[T prometheus.Collector](reg prometheus.Registerer, c T) T {
+	if err := reg.Register(c); err != nil {
+		var are prometheus.AlreadyRegisteredError
+		if errors.As(err, &are) {
+			return are.ExistingCollector.(T)
+		}
+		panic(err)
+	}
+	return c
 }

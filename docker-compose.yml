@@ -35,10 +35,9 @@ services:
     environment:
       - MINIO_ROOT_USER=minioadmin
       - MINIO_ROOT_PASSWORD=minioadmin
-      # Enables MinIO's built-in /minio/v2/metrics/cluster endpoint with no
-      # extra auth token — relies on network-level restriction (Tailscale)
-      # instead. Switch to a token-gated auth type here if defense-in-depth
-      # is wanted; see monitoring/README.md.
+      # Exposes MinIO's /minio/v2/metrics/cluster endpoint without a bearer
+      # token so Prometheus can scrape it. Dev default only: in production
+      # restrict network access to it, or use a token-gated auth type.
       - MINIO_PROMETHEUS_AUTH_TYPE=public
     ports:
       - "9000:9000"
@@ -51,15 +50,17 @@ services:
     networks:
       - images-api-network
 
-  # --- Observability ---------------------------------------------------------
-  # Same compose file used for local dev today; if/when this is deployed to
-  # Swarm in production (the app's own retry logic in internal/server/api.go
-  # already assumes Swarm's lack of startup ordering), apply the same
-  # `deploy: mode: global` + `ports: ... mode: host` pattern used in
-  # dolibarr-multi-tenant's docker-compose.prod.yml once that production
-  # compose/stack file exists — see monitoring's open items.
+  # --- Observability (opt-in) ------------------------------------------------
+  # Not started by default. Enable with:
+  #   docker compose --profile observability up
+  # Exporters bind to 127.0.0.1 unless METRICS_BIND is set; they have no
+  # authentication, so only widen the bind on a private network. Point your
+  # Prometheus at these ports and your Loki at LOKI_URL.
+  # node-exporter, cadvisor and promtail mount host paths (/, /sys,
+  # docker.sock) read-only — review that before running them on shared hosts.
   node-exporter:
-    image: prom/node-exporter:latest
+    image: prom/node-exporter:v1.9.1
+    profiles: ["observability"]
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
@@ -70,11 +71,12 @@ services:
       - --path.rootfs=/rootfs
       - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($|/)
     ports:
-      - "9100:9100"
+      - "${METRICS_BIND:-127.0.0.1}:9100:9100"
     restart: unless-stopped
 
   cadvisor:
-    image: gcr.io/cadvisor/cadvisor:latest
+    image: gcr.io/cadvisor/cadvisor:v0.52.1
+    profiles: ["observability"]
     volumes:
       - /:/rootfs:ro
       - /var/run:/var/run:ro
@@ -82,15 +84,16 @@ services:
       - /var/lib/docker:/var/lib/docker:ro
       - /dev/disk:/dev/disk:ro
     ports:
-      - "8081:8080"
+      - "${METRICS_BIND:-127.0.0.1}:8081:8080"
     restart: unless-stopped
 
   redis-exporter:
-    image: oliver006/redis_exporter:latest
+    image: oliver006/redis_exporter:v1.67.0
+    profiles: ["observability"]
     command:
       - --redis.addr=redis:6379
     ports:
-      - "9121:9121"
+      - "${METRICS_BIND:-127.0.0.1}:9121:9121"
     depends_on:
       redis:
         condition: service_healthy
@@ -99,13 +102,16 @@ services:
     restart: unless-stopped
 
   promtail:
-    image: grafana/promtail:latest
+    image: grafana/promtail:3.5.1
+    profiles: ["observability"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
       - promtail-positions:/promtail-positions
       - ./infra/promtail-config.yml:/etc/promtail/config.yml:ro
     environment:
-      LOKI_URL: "${LOKI_URL:?set to the observability host's Tailscale address, e.g. http://100.x.y.z:3100}"
+      # Required when the observability profile is enabled, e.g. http://loki:3100
+      LOKI_URL: "${LOKI_URL:-}"
+      ENVIRONMENT: "${ENVIRONMENT:-dev}"
     command:
       - --config.file=/etc/promtail/config.yml
       - --config.expand-env=true

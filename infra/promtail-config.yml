@@ -1,7 +1,7 @@
-# Ships images-api/redis/minio container stdout to Loki over the Tailscale
-# mesh — no auth token needed, access is restricted by network placement
-# (see ../../monitoring/README.md). ${LOKI_URL} expanded via
-# --config.expand-env=true.
+# Ships images-api/redis/minio container stdout to Loki. Enabled through the
+# `observability` compose profile. Point LOKI_URL at a Loki instance reachable
+# from this host; Loki itself has no auth here, so keep it on a private network.
+# ${LOKI_URL} and ${ENVIRONMENT} are expanded via --config.expand-env=true.
 server:
   http_listen_port: 9080
   grpc_listen_port: 0
@@ -27,4 +27,4 @@ scrape_configs:
       - target_label: job
         replacement: images-api-containers
       - target_label: environment
-        replacement: production
+        replacement: ${ENVIRONMENT}

@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"math"
 	"net/http"
 	"os"
 	"os/signal"
@@ -151,7 +152,7 @@ func (s *APIServer) initMetrics() {
 			func() float64 {
 				depth, err := s.Cache.QueueDepth(context.Background())
 				if err != nil {
-					return -1
+					return math.NaN()
 				}
 				return float64(depth)
 			},
