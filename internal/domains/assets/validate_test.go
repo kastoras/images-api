@@ -10,21 +10,6 @@ import (
 	internal_errors "github.com/kastoras/images-api/internal/utils/errors"
 )
 
-func TestValidateIdentifier(t *testing.T) {
-	valid := []string{"acme", "Tenant_1", "a-b", strings.Repeat("x", 128)}
-	invalid := []string{"", "a/b", "a b", "../x", "a.b", strings.Repeat("x", 129)}
-	for _, v := range valid {
-		if err := validateIdentifier("tenant", v); err != nil {
-			t.Errorf("%q should be valid: %v", v, err)
-		}
-	}
-	for _, v := range invalid {
-		if err := validateIdentifier("tenant", v); !isValidationError(err) {
-			t.Errorf("%q should be rejected, got %v", v, err)
-		}
-	}
-}
-
 func TestValidateHash(t *testing.T) {
 	if err := validateHash(validHash); err != nil {
 		t.Errorf("valid hash rejected: %v", err)

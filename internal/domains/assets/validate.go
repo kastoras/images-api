@@ -17,20 +17,8 @@ var allowedMIMETypes = map[string]bool{
 	"image/webp": true,
 }
 
-// identifierPattern bounds both consumer and tenant identifiers. tenant is
-// caller-supplied, so this is a real security/robustness check (it becomes
-// part of a storage key and a URL path segment), not just hygiene.
-var identifierPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,128}$`)
-
 // hashPattern matches the sha256 hex digest asset ids are addressed by.
 var hashPattern = regexp.MustCompile(`^[a-f0-9]{64}$`)
-
-func validateIdentifier(name, value string) error {
-	if !identifierPattern.MatchString(value) {
-		return internal_errors.NewValidationError(name + " must match ^[A-Za-z0-9_-]{1,128}$")
-	}
-	return nil
-}
 
 func validateHash(hash string) error {
 	if !hashPattern.MatchString(hash) {

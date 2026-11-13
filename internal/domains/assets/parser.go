@@ -7,26 +7,10 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/kastoras/images-api/internal/imageprocessing"
-	"github.com/kastoras/images-api/internal/server/authentication"
 	internal_errors "github.com/kastoras/images-api/internal/utils/errors"
 	"github.com/kastoras/images-api/internal/utils/files"
 	form "github.com/kastoras/images-api/internal/utils/requests"
 )
-
-// consumerFromContext resolves the calling consumer from the principal Auth
-// middleware placed in the request context. This is the whole point of the
-// two-level tenancy model: consumer is never taken from the request itself,
-// so no caller can address another consumer's namespace.
-func consumerFromContext(r *http.Request) (string, error) {
-	principal, ok := authentication.PrincipalFrom(r.Context())
-	if !ok || principal.Subject == "" {
-		return "", internal_errors.NewValidationError("no authenticated consumer identity")
-	}
-	if err := validateIdentifier("consumer", principal.Subject); err != nil {
-		return "", err
-	}
-	return principal.Subject, nil
-}
 
 type createRequest struct {
 	Consumer string
@@ -35,13 +19,13 @@ type createRequest struct {
 }
 
 func parseCreateRequest(r *http.Request) (*createRequest, error) {
-	consumer, err := consumerFromContext(r)
+	consumer, err := form.ConsumerFromContext(r)
 	if err != nil {
 		return nil, err
 	}
 
 	tenant := strings.TrimSpace(r.FormValue("tenant"))
-	if err := validateIdentifier("tenant", tenant); err != nil {
+	if err := form.ValidateIdentifier("tenant", tenant); err != nil {
 		return nil, err
 	}
 
@@ -76,10 +60,10 @@ func parseRenderRequest(r *http.Request, maxMegapixels int) (*renderRequest, err
 	vars := mux.Vars(r)
 	consumer, tenant, hash := vars["consumer"], vars["tenant"], vars["hash"]
 
-	if err := validateIdentifier("consumer", consumer); err != nil {
+	if err := form.ValidateIdentifier("consumer", consumer); err != nil {
 		return nil, err
 	}
-	if err := validateIdentifier("tenant", tenant); err != nil {
+	if err := form.ValidateIdentifier("tenant", tenant); err != nil {
 		return nil, err
 	}
 	if err := validateHash(hash); err != nil {
@@ -166,7 +150,7 @@ func checkRequestedDimensions(width, height, maxMegapixels int) error {
 func parseTenantAndHash(r *http.Request) (tenant, hash string, err error) {
 	vars := mux.Vars(r)
 	tenant, hash = vars["tenant"], vars["hash"]
-	if err := validateIdentifier("tenant", tenant); err != nil {
+	if err := form.ValidateIdentifier("tenant", tenant); err != nil {
 		return "", "", err
 	}
 	if err := validateHash(hash); err != nil {
@@ -177,7 +161,7 @@ func parseTenantAndHash(r *http.Request) (tenant, hash string, err error) {
 
 func parseTenant(r *http.Request) (string, error) {
 	tenant := strings.TrimSpace(r.URL.Query().Get("tenant"))
-	if err := validateIdentifier("tenant", tenant); err != nil {
+	if err := form.ValidateIdentifier("tenant", tenant); err != nil {
 		return "", err
 	}
 	return tenant, nil

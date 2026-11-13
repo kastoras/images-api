@@ -7,6 +7,7 @@ import (
 	"github.com/kastoras/images-api/internal/imageprocessing"
 	"github.com/kastoras/images-api/internal/server"
 	"github.com/kastoras/images-api/internal/utils/files"
+	form "github.com/kastoras/images-api/internal/utils/requests"
 	"github.com/kastoras/images-api/internal/utils/responses"
 )
 
@@ -83,7 +84,7 @@ func (h *Handler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	consumer, err := consumerFromContext(r)
+	consumer, err := form.ConsumerFromContext(r)
 	if err != nil {
 		responses.ErrorResponse(w, err)
 		return
@@ -111,7 +112,7 @@ func (h *Handler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	consumer, err := consumerFromContext(r)
+	consumer, err := form.ConsumerFromContext(r)
 	if err != nil {
 		responses.ErrorResponse(w, err)
 		return

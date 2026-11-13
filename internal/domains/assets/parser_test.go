@@ -8,23 +8,6 @@ import (
 	"github.com/kastoras/images-api/internal/imageprocessing"
 )
 
-func TestConsumerFromContext(t *testing.T) {
-	base := httptest.NewRequest(http.MethodGet, "/", nil)
-
-	if _, err := consumerFromContext(base); !isValidationError(err) {
-		t.Errorf("no principal: got %v", err)
-	}
-	if _, err := consumerFromContext(withPrincipal(base, "")); !isValidationError(err) {
-		t.Errorf("empty subject: got %v", err)
-	}
-	if _, err := consumerFromContext(withPrincipal(base, "bad/consumer")); !isValidationError(err) {
-		t.Errorf("invalid subject: got %v", err)
-	}
-	if got, err := consumerFromContext(withPrincipal(base, "acme")); err != nil || got != "acme" {
-		t.Errorf("got %q, %v", got, err)
-	}
-}
-
 func TestParseCreateRequest(t *testing.T) {
 	req := withPrincipal(multipartRequest(t, " t1 ", []byte("x"), "image/png"), "acme")
 	if err := req.ParseMultipartForm(1 << 20); err != nil {

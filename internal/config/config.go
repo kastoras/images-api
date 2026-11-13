@@ -148,14 +148,15 @@ func Load() (*Config, error) {
 		cfg.DependencyWaitTimeout = 60 * time.Second
 	}
 
-	cfg.ReadTimeout, err = env_parameters.GetDuration("READ_TIMEOUT", 15, time.Second)
+	// Sized for a full MAX_UPLOAD_SIZE_BYTES upload/download on a slow link.
+	cfg.ReadTimeout, err = env_parameters.GetDuration("READ_TIMEOUT", 120, time.Second)
 	if err != nil {
-		cfg.ReadTimeout = 15 * time.Second
+		cfg.ReadTimeout = 120 * time.Second
 	}
 
-	cfg.WriteTimeout, err = env_parameters.GetDuration("WRITE_TIMEOUT", 15, time.Second)
+	cfg.WriteTimeout, err = env_parameters.GetDuration("WRITE_TIMEOUT", 120, time.Second)
 	if err != nil {
-		cfg.WriteTimeout = 15 * time.Second
+		cfg.WriteTimeout = 120 * time.Second
 	}
 
 	cfg.IdleTimeout, err = env_parameters.GetDuration("IDLE_TIMEOUT", 60, time.Second)

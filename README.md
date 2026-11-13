@@ -75,8 +75,8 @@ Copy `.env.example` to `.env` and fill in the values.
 | `MAX_WORKERS` | `10` | Concurrent processing slots |
 | `MAX_QUEUE_DEPTH` | `50` | Max pending jobs before rejecting with 503 |
 | `PROCESSING_TIMEOUT` | `10` | Per-job timeout in seconds |
-| `READ_TIMEOUT` | `15` | HTTP read timeout in seconds |
-| `WRITE_TIMEOUT` | `15` | HTTP write timeout in seconds |
+| `READ_TIMEOUT` | `120` | HTTP read timeout in seconds (must cover a full upload on a slow link) |
+| `WRITE_TIMEOUT` | `120` | HTTP write timeout in seconds (must cover a full download on a slow link) |
 | `IDLE_TIMEOUT` | `60` | HTTP idle timeout in seconds |
 | `LOG_LEVEL` | `info` | `debug`, `info`, `warn`, `error` |
 
@@ -309,6 +309,44 @@ Returns every master id, size, and last-modified time for your consumer+tenant. 
 #### Future: bring your own storage
 
 Today all consumers share one images-api-operated bucket, isolated by the consumer-derived key prefix above. A consumer needing physically separate storage (data residency, full custody, etc.) is a designed-for future extension: both AWS S3 and MinIO natively support `AssumeRoleWithWebIdentity` — a consumer's own Zitadel-issued token can be exchanged for temporary, policy-scoped credentials against their own storage account, with no long-lived secret ever held by images-api. Not implemented yet.
+
+---
+
+### Files — store and retrieve any supported file unchanged
+
+Unlike `assets`, the `files` domain stores the uploaded bytes as-is (no decoding, no re-encoding). Same consumer/tenant isolation as assets. Requires the `files` role.
+
+Allowed types: JPEG, PNG, WebP, GIF, PDF, plain text. The type is **detected from the file's bytes**; the client's `Content-Type` is ignored. SVG and HTML are rejected. Max size: `MAX_UPLOAD_SIZE_BYTES`.
+
+#### Upload
+
+```
+POST /api/v1/files
+Content-Type: multipart/form-data
+Authorization: Bearer <token>
+```
+
+| Field | Required | Description |
+|---|---|---|
+| `file` | yes | The file |
+| `tenant` | yes | Your own sub-identifier |
+| `visibility` | no | `private` (default) or `public` |
+
+**Response `201`:**
+```json
+{"data": {"id": "<uuid>", "tenant": "t1", "filename": "report.pdf", "content_type": "application/pdf", "bytes": 1234, "visibility": "private", "url": "/api/v1/files/t1/<uuid>"}}
+```
+
+#### Download
+
+- `GET /api/v1/files/{tenant}/{id}`: authenticated, any visibility, your own consumer only.
+- `GET /f/{consumer}/{tenant}/{id}`: **no authentication**, only for files uploaded with `visibility=public` (anything else returns `404`).
+
+Responses carry `X-Content-Type-Options: nosniff`. Non-image files are sent as `Content-Disposition: attachment`.
+
+#### Delete
+
+`DELETE /api/v1/files/{tenant}/{id}`: `204`, idempotent.
 
 ---
 
