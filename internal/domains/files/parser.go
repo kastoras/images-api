@@ -47,7 +47,7 @@ func parseCreateRequest(r *http.Request) (*createRequest, error) {
 	}
 	if !allowedContentTypes[contentType] {
 		utilfiles.SafeClose(file)
-		return nil, internal_errors.NewValidationError("unsupported file type " + contentType + ": use JPEG, PNG, WebP, GIF, PDF or plain text")
+		return nil, internal_errors.NewValidationError("unsupported file type " + contentType + ": use JPEG, PNG, WebP, GIF, MP4, MOV, PDF or plain text")
 	}
 
 	return &createRequest{
@@ -65,7 +65,8 @@ func parseCreateRequest(r *http.Request) (*createRequest, error) {
 }
 
 // sniffContentType detects the type from the first 512 bytes, then rewinds
-// so the full file is uploaded.
+// so the full file is uploaded. Videos are checked first because
+// http.DetectContentType misses QuickTime.
 func sniffContentType(f io.ReadSeeker) (string, error) {
 	buf := make([]byte, 512)
 	n, err := io.ReadFull(f, buf)
@@ -74,6 +75,9 @@ func sniffContentType(f io.ReadSeeker) (string, error) {
 	}
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		return "", err
+	}
+	if video := sniffVideo(buf[:n]); video != "" {
+		return video, nil
 	}
 	return http.DetectContentType(buf[:n]), nil
 }

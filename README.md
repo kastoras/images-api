@@ -316,7 +316,7 @@ Today all consumers share one images-api-operated bucket, isolated by the consum
 
 Unlike `assets`, the `files` domain stores the uploaded bytes as-is (no decoding, no re-encoding). Same consumer/tenant isolation as assets. Requires the `files` role.
 
-Allowed types: JPEG, PNG, WebP, GIF, PDF, plain text. The type is **detected from the file's bytes**; the client's `Content-Type` is ignored. SVG and HTML are rejected. Max size: `MAX_UPLOAD_SIZE_BYTES`.
+Allowed types: JPEG, PNG, WebP, GIF, MP4, MOV (QuickTime), PDF, plain text. The type is **detected from the file's bytes**; the client's `Content-Type` is ignored. SVG and HTML are rejected. Max size: `MAX_UPLOAD_SIZE_BYTES`.
 
 #### Upload
 
@@ -342,7 +342,7 @@ Authorization: Bearer <token>
 - `GET /api/v1/files/{tenant}/{id}`: authenticated, any visibility, your own consumer only.
 - `GET /f/{consumer}/{tenant}/{id}`: **no authentication**, only for files uploaded with `visibility=public` (anything else returns `404`).
 
-Responses carry `X-Content-Type-Options: nosniff`. Non-image files are sent as `Content-Disposition: attachment`.
+Responses carry `X-Content-Type-Options: nosniff`. Files other than images and videos are sent as `Content-Disposition: attachment`. Videos are usually larger than the 25 MB default, so raise `MAX_UPLOAD_SIZE_BYTES` where videos are uploaded (Instagram Reels allow up to 300 MB).
 
 #### Delete
 

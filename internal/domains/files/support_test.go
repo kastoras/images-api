@@ -20,6 +20,9 @@ import (
 var (
 	pdfBytes = []byte("%PDF-1.4\n%fake pdf body\n")
 	pngBytes = []byte("\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR")
+	// Leading ftyp boxes as cameras and phones write them.
+	mp4Bytes = []byte("\x00\x00\x00\x18ftypmp42\x00\x00\x00\x00mp42isom\x00\x00\x00\x08free")
+	movBytes = []byte("\x00\x00\x00\x14ftypqt  \x00\x00\x00\x00qt  \x00\x00\x00\x08wide")
 	txtBytes = []byte("hello world\n")
 	// HTML disguised behind an image extension and header.
 	htmlBytes = []byte("<!DOCTYPE html><html><script>alert(1)</script></html>")

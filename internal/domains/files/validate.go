@@ -17,6 +17,8 @@ var allowedContentTypes = map[string]bool{
 	"image/png":                 true,
 	"image/webp":                true,
 	"image/gif":                 true,
+	"video/mp4":                 true,
+	"video/quicktime":           true,
 	"application/pdf":           true,
 	"text/plain; charset=utf-8": true,
 }

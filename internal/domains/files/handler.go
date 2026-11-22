@@ -103,7 +103,7 @@ func (h *Handler) serve(w http.ResponseWriter, r *http.Request, consumer, tenant
 	w.Header().Set("Content-Type", obj.ContentType)
 	w.Header().Set("Content-Length", strconv.FormatInt(obj.Size, 10))
 	w.Header().Set("X-Content-Type-Options", "nosniff")
-	if !strings.HasPrefix(obj.ContentType, "image/") {
+	if !isMedia(obj.ContentType) {
 		w.Header().Set("Content-Disposition", `attachment; filename="`+obj.Filename+`"`)
 	}
 	if publicOnly {
@@ -117,6 +117,12 @@ func (h *Handler) serve(w http.ResponseWriter, r *http.Request, consumer, tenant
 		// Headers are already sent; all we can do is log.
 		h.server.Log.Warn().Err(err).Str("tenant", tenant).Str("id", id).Msg("file stream interrupted")
 	}
+}
+
+// isMedia reports whether a file is shown inline (images and videos) rather
+// than downloaded as an attachment.
+func isMedia(contentType string) bool {
+	return strings.HasPrefix(contentType, "image/") || strings.HasPrefix(contentType, "video/")
 }
 
 // Delete handles DELETE /api/v1/files/{tenant}/{id}.
