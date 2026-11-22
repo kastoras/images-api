@@ -167,7 +167,7 @@ Content-Type: multipart/form-data
 
 | Field | Type | Required | Description |
 |---|---|---|---|
-| `file` | file | yes | Image to resize (`image/jpeg`, `image/png`, `image/gif`, `image/tiff`) |
+| `file` | file | yes | Image to resize (`image/jpeg`, `image/png`, `image/gif`, `image/tiff`, `image/webp`) |
 | `width` | integer | one of | Target width in pixels (positive). Omit to calculate from aspect ratio. |
 | `height` | integer | one of | Target height in pixels (positive). Omit to calculate from aspect ratio. |
 | `mode` | string | no | Resize mode: `exact` (default), `fit`, `fill` — see below |
