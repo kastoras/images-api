@@ -19,6 +19,8 @@ func TestValidateAndParseCreateRequest(t *testing.T) {
 		{"pdf", map[string]string{"tenant": "t1"}, "application/pdf", pdfBytes, false, "application/pdf", "private"},
 		{"png public", map[string]string{"tenant": "t1", "visibility": "public"}, "image/png", pngBytes, false, "image/png", "public"},
 		{"txt", map[string]string{"tenant": "t1"}, "text/plain", txtBytes, false, "text/plain; charset=utf-8", "private"},
+		{"mp4", map[string]string{"tenant": "t1", "visibility": "public"}, "video/mp4", mp4Bytes, false, "video/mp4", "public"},
+		{"mov", map[string]string{"tenant": "t1"}, "video/quicktime", movBytes, false, "video/quicktime", "private"},
 		{"html spoofed as png", map[string]string{"tenant": "t1"}, "image/png", htmlBytes, true, "", ""},
 		{"svg", map[string]string{"tenant": "t1"}, "image/svg+xml", []byte(`<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"/>`), true, "", ""},
 		{"bad visibility", map[string]string{"tenant": "t1", "visibility": "world"}, "application/pdf", pdfBytes, true, "", ""},
