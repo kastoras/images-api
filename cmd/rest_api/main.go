@@ -24,6 +24,7 @@ import (
 	"github.com/kastoras/images-api/internal/domains/assets"
 	"github.com/kastoras/images-api/internal/domains/health"
 	"github.com/kastoras/images-api/internal/domains/jobs"
+	"github.com/kastoras/images-api/internal/domains/metrics"
 	"github.com/kastoras/images-api/internal/domains/resize"
 	"github.com/kastoras/images-api/internal/middleware"
 	"github.com/kastoras/images-api/internal/server"
@@ -32,9 +33,11 @@ import (
 func setupRouter(api *server.APIServer) *mux.Router {
 	router := mux.NewRouter()
 	router.Use(middleware.Logging(api.Log))
+	router.Use(middleware.Metrics(api.Metrics))
 
-	// /health and /a/.../render are unauthenticated
+	// /health, /metrics and /a/.../render are unauthenticated
 	health.Register(router, api)
+	metrics.Register(router, api)
 	assets.RegisterPublic(router, api)
 
 	// All /api/v1 routes require auth

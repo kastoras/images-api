@@ -19,6 +19,7 @@ var SupportedMIMETypes = map[string]bool{
 	"image/png":  true,
 	"image/gif":  true,
 	"image/tiff": true,
+	"image/webp": true,
 }
 
 func Decode(r io.Reader) (image.Image, error) {

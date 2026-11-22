@@ -252,7 +252,7 @@ func TestParseResizeRequest_FillRequiresBothDimensions(t *testing.T) {
 }
 
 func TestParseResizeRequest_SupportedTypes(t *testing.T) {
-	types := []string{"image/jpeg", "image/png", "image/gif", "image/tiff"}
+	types := []string{"image/jpeg", "image/png", "image/gif", "image/tiff", "image/webp"}
 	for _, ct := range types {
 		req := buildMultipartRequest(t, minimalJPEG, ct, "10", "10", "")
 		result, err := parseResizeRequest(req)
